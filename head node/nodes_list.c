@@ -1,0 +1,196 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/sysinfo.h>
+#include <cjson/cJSON.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <unistd.h>
+
+#define PORT 5000
+#define MAX_CORES 256
+
+typedef struct {
+    int count;
+    int cores[MAX_CORES];
+} ResourceInfo;
+
+// Parse the resource string into a ResourceInfo structure
+ResourceInfo parse_resource_info(char *str) {
+    ResourceInfo info = {0};
+    char *count_str = strtok(str, ":");
+    if (count_str) {
+        info.count = atoi(count_str);
+        char *cores_str = strtok(NULL, "-");
+        if (cores_str) {
+            char *core = strtok(cores_str, ",");
+            int i = 0;
+            while (core && i < MAX_CORES) {
+                info.cores[i++] = atoi(core);
+                core = strtok(NULL, ",");
+            }
+        }
+    }
+    return info;
+}
+
+char *from_node(const char *ip) {
+    int sock;
+    struct sockaddr_in server_addr;
+    static char buffer[1024];
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("Socket creation failed");
+        return NULL;
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+        printf("Invalid address for %s\n", ip);
+        close(sock);
+        return NULL;
+    }
+
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0) {
+        int bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received > 0) {
+            buffer[bytes_received] = '\0';
+        } else {
+            printf("No data received from %s\n", ip);
+            close(sock);
+            return NULL;
+        }
+    } else {
+        printf("Failed to connect to %s\n", ip);
+        close(sock);
+        return NULL;
+    }
+
+    close(sock);
+    return buffer;
+}
+
+void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info, const char *hostname) {
+    FILE *file = fopen("rankfile.txt", "a");
+    if (!file) {
+        perror("Failed to open rankfile.txt");
+        return;
+    }
+
+    // Write CPU assignments
+    for (int i = 0; i < cpu_info->count; i++) {
+        fprintf(file, "rank %d=%s slot=%d\n", i, hostname, cpu_info->cores[i]);
+    }
+
+    // Write GPU assignments
+    int rank = cpu_info->count;
+    for (int i = 0; i < gpu_info->count; i++) {
+        fprintf(file, "rank %d=%s gpu=%d:0\n", rank + i, hostname, gpu_info->cores[i]);
+    }
+
+    fclose(file);
+}
+
+cJSON * check_nodes(const char * ip) {
+	char *info = from_node(ip);
+    if (!info) {
+        printf("Skipping %s due to connection failure.\n", ip);
+        return NULL;
+    }
+
+    char *cpu_str = strtok(info, "-");
+    char *gpu_str = strtok(NULL, "-");
+
+    if (!cpu_str || !gpu_str) {
+        printf("Invalid format received from %s\n", ip);
+        return NULL;
+    }
+
+    ResourceInfo cpu_info = parse_resource_info(cpu_str);
+    ResourceInfo gpu_info = parse_resource_info(gpu_str);
+
+    // Save to rankfile
+    save_to_rankfile(&cpu_info, &gpu_info, ip);
+
+    // Create JSON object
+    cJSON *node = cJSON_CreateObject();
+    if (!node) return NULL;
+
+    cJSON_AddStringToObject(node, "hostname", ip);
+
+    // Add CPU info
+    cJSON *cpus = cJSON_CreateObject();
+
+    for (int i = 0; i < cpu_info.count; i++) {
+		cJSON * cpu = cJSON_CreateObject();
+        char key[16];
+        char corenum[16];
+        sprintf(key, "cpu%d", i);
+        sprintf(corenum, "%d", cpu_info.cores[i]);
+        cJSON_AddStringToObject(cpu, "avail", "FREE");
+        cJSON_AddStringToObject(cpu, "core #", corenum);
+		cJSON_AddItemToObject(cpus, key, cpu);
+    }
+    cJSON_AddItemToObject(node, "cpus", cpus);
+
+    // Add GPU info
+    cJSON *gpus = cJSON_CreateObject();
+    for (int i = 0; i < gpu_info.count; i++) {
+        cJSON * gpu = cJSON_CreateObject();
+        char key[16];
+        char corenum[16];
+        sprintf(key, "gpu%d", i);
+        sprintf(corenum, "%d", gpu_info.cores[i]);
+        cJSON_AddStringToObject(gpu, "avail", "FREE");
+        cJSON_AddStringToObject(gpu, "core #", corenum);
+		cJSON_AddItemToObject(gpus, key, gpu);
+    }
+    cJSON_AddItemToObject(node, "gpus", gpus);
+
+    return node;
+}
+
+int main() {
+    const char *nodes[] = {"ip_address", "192.xx.xx"};
+    int num_nodes = sizeof(nodes) / sizeof(nodes[0]);
+
+    // Clear rankfile
+    FILE *rankfile = fopen("rankfile.txt", "w");
+    if (rankfile) {
+        fclose(rankfile);
+    } else {
+        perror("Failed to create rankfile.txt");
+        return 1;
+    }
+
+    cJSON *jobs_array = cJSON_CreateArray();
+    if (!jobs_array) {
+        printf("Failed to create JSON array\n");
+        return 1;
+    }
+
+    for (int i = 0; i < num_nodes; i++) {
+        cJSON *node_info = check_nodes(nodes[i]);
+        if (node_info) {
+            cJSON_AddItemToArray(jobs_array, node_info);
+        }
+    }
+
+    // Save JSON to file
+    FILE *json_file = fopen("nodes.json", "w");
+    if (json_file) {
+        char *json_string = cJSON_Print(jobs_array);
+        if (json_string) {
+            fprintf(json_file, "%s\n", json_string);
+            free(json_string);
+        }
+        fclose(json_file);
+    }
+
+    cJSON_Delete(jobs_array);
+    return 0;
+}
