@@ -15,6 +15,59 @@ typedef struct {
     int cores[MAX_CORES];
 } ResourceInfo;
 
+// update availability of the cores for each node
+void update_status(int core, char * host) {
+    FILE * fp = fopen("nodes.json", "r");
+	cJSON * node_array;
+	char core_id[5];
+	sprintf(core_id, "%d", core);
+
+	fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    rewind(fp);
+
+    if (file_size > 0) {
+        char *buffer = (char *)malloc(file_size + 1);
+        fread(buffer, 1, file_size, fp);
+        buffer[file_size] = '\0';
+
+        node_array = cJSON_Parse(buffer);
+        free(buffer);
+    }
+    fclose(fp);	
+
+    cJSON * node = NULL;
+
+    cJSON_ArrayForEach(node, node_array) {
+		cJSON * cpu = cJSON_GetObjectItem(node, "cpus");
+        cJSON * hostn = cJSON_GetObjectItem(node, "hostname");
+		cJSON * cpu_info = NULL;
+		cJSON_ArrayForEach(cpu_info, cpu) {
+			cJSON * core = cJSON_GetObjectItem(cpu_info, "core #");
+			cJSON * status = cJSON_GetObjectItem(cpu_info, "avail");
+			if (strcmp(core->valuestring, core_id) == 0 && strcmp(status->valuestring, "FREE") == 0 && strcmp(hostn->valuestring, host) == 0) {
+				cJSON_ReplaceItemInObject(cpu_info, "avail", cJSON_CreateString("OCCUPIED"));
+				break;
+			} else if (strcmp(core->valuestring, core_id) == 0 && strcmp(status->valuestring, "OCCUPIED") == 0) {
+				cJSON_ReplaceItemInObject(cpu_info, "avail", cJSON_CreateString("FREE"));
+				break;
+			}
+		}
+    }
+    
+    char *updated_json = cJSON_Print(node_array);
+	fp = fopen("nodes.json", "w");
+    if (fp) {
+        char *json_string = cJSON_Print(node_array);
+        fprintf(fp, "%s", json_string);
+        free(json_string);
+        fclose(fp);
+    }
+
+    cJSON_Delete(node_array);
+    
+}
+
 // Parse the resource string into a ResourceInfo structure
 ResourceInfo parse_resource_info(char *str) {
     ResourceInfo info = {0};
