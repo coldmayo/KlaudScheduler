@@ -7,6 +7,41 @@
 
 // Possible job status: RUNNING, QUEUED, DONE
 
+int gen_id(void) {
+	FILE * fp = fopen("jobs.json", "r");
+	cJSON * jobs_array;
+	if (fp == NULL) {
+		return -1;
+	}
+
+	fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    rewind(fp);
+
+    if (file_size > 0) {
+        char *buffer = (char *)malloc(file_size + 1);
+        fread(buffer, 1, file_size, fp);
+        buffer[file_size] = '\0';
+
+        jobs_array = cJSON_Parse(buffer);
+        free(buffer);
+    } else {
+        fclose(fp);
+		return 300;
+    }
+    
+    fclose(fp);
+	int ind;
+    cJSON * job = NULL;
+    cJSON * id;
+    cJSON_ArrayForEach(job, jobs_array) {
+		id = cJSON_GetObjectItem(job, "job_id");
+    }
+
+    ind = atoi(id->valuestring);
+    return ind+1;
+}
+
 int chg_status(int id) {
 	FILE * fp = fopen("jobs.json", "r");
 	char job_id[5];

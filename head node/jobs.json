@@ -1,0 +1,23 @@
+[{
+		"job_id":	"300",
+		"command":	"pingus",
+		"resources":	{
+			"cpu":	4,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	1,
+		"output":	"outfile.out",
+		"status":	"QUEUED"
+	}, {
+		"job_id":	"301",
+		"command":	"pingus",
+		"resources":	{
+			"cpu":	4,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	1,
+		"output":	"outfile.out",
+		"status":	"QUEUED"
+	}]
