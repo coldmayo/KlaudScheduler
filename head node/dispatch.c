@@ -17,7 +17,7 @@ typedef struct {
 	bool free;
 } CPUout;
 
-// for now, just doing jobs in submission order
+// for now, just doing jobs in submission order (First Come first Serve)
 cJSON * find_job() {
 	FILE * fp = fopen("jobs.json", "r");
 	if (!fp) return NULL;
@@ -44,13 +44,12 @@ cJSON * find_job() {
 	int biggest = 0;
 	cJSON * biggest_job = NULL;
 	cJSON_ArrayForEach(job, jobs_array) {
-		cJSON * id = cJSON_GetObjectItem(job, "job_id");
 		cJSON * status = cJSON_GetObjectItem(job, "status");
-
+		cJSON * priority = cJSON_GetObjectItem(job, "priority");
 		if (strcmp(status->valuestring, "QUEUED") == 0) {
-			int current_id = atoi(id->valuestring);
-			if (current_id > biggest) {
-    			biggest = current_id;
+			int prior = atoi(priority->valuestring);
+			if (proir > biggest) {
+    			biggest = proir;
 				biggest_job = job;
 			}
 		}

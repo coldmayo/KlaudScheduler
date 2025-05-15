@@ -5,11 +5,11 @@
 #include "current_jobs.h"
 
 typedef struct {
-    int cores;
+    int cpus;
     char *command;
 } E_Job;
 
-const char *list[2] = {"--num_cores", "--command"};
+const char *list[2] = {"--num_cpus", "--command"};
 
 int check_args(const char *arg) {
     char temp[100];
@@ -42,7 +42,7 @@ void get_info(int argc, char *argv[], E_Job *job) {
         if (index == 0) {
             char *value = strchr(argv[i], '=');
             if (value) {
-                job->cores = atoi(value + 1);
+                job->cpus = atoi(value + 1);
             }
         } else if (index == 1) {
             char *value = strchr(argv[i], '=');
@@ -58,17 +58,17 @@ void get_info(int argc, char *argv[], E_Job *job) {
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
-        printf("Usage: ./main --num_cores=<num> --command=\"<cmd>\"\n");
+        printf("Usage: ./main --num_cpus=<num> --command=\"<cmd>\"\n");
         return EXIT_FAILURE;
     }
 
     E_Job job = {0, NULL};
     get_info(argc, argv, &job);
 
-    printf("Cores: %d\n", job.cores);
+    printf("CPUs: %d\n", job.cpus);
     printf("Command: %s\n", job.command);
 
-	save_job(gen_id(), job.command, job.cores, "idk", 0, 1, "outfile.out", "QUEUED");
+	save_job(gen_id(), job.command, job.cpus, "idk", 0, get_priority(), "outfile.out", "QUEUED");
 
     free(job.command);
     return 0;

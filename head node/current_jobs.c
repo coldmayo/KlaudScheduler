@@ -2,10 +2,18 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <cjson/cJSON.h>
 
 // Possible job status: RUNNING, QUEUED, DONE
+
+int get_priority(int time, int cpus) {
+	int alpha = 2;
+	int beta = 1;
+	int prior = (time*alpha) + (cpus*beta);
+	return prior;
+}
 
 int gen_id(void) {
 	FILE * fp = fopen("jobs.json", "r");
@@ -67,6 +75,7 @@ int chg_status(int id) {
     fclose(fp);	
 
 	cJSON * job = NULL;
+	bool chgTime = false;
 	cJSON_ArrayForEach(job, jobs_array) {
 		cJSON * id = cJSON_GetObjectItem(job, "job_id");
 		cJSON * status = cJSON_GetObjectItem(job, "status");
@@ -76,7 +85,23 @@ int chg_status(int id) {
 			break;
 		} else if (strcmp(id->valuestring, job_id) == 0 && strcmp(status->valuestring, "RUNNING") == 0) {
 			cJSON_ReplaceItemInObject(job, "status", cJSON_CreateString("DONE"));
+			chgTime = true;
 			break;
+		}
+	}
+
+	if (chgTime) {
+		job = NULL;
+		cJSON_ArrayForEach(job, jobs_array) {
+			cJSON * status = cJSON_GetObjectItem(job, "status");
+			cJSON * time = cJSON_GetObjectItem(job, "time");
+			cJSON * cpu = cJSON_GetObjectItem(job, "cpu");
+			if (strcmp(status->valuestring, "QUEUED") == 0) {
+    			int new_time = atoi(time->valuestring)+1;
+				cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
+				int new_prior = get_priority(new_time, atoi(cpu->valuestring));
+				cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
+			}
 		}
 	}
 
@@ -138,6 +163,7 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, int p
     cJSON_AddItemToObject(job, "resources", resources);
 
     cJSON_AddNumberToObject(job, "priority", priority);
+    cJSON_AddNumberToObject(job, "time", 0);
     cJSON_AddStringToObject(job, "output", out);
     cJSON_AddStringToObject(job, "status", stat);
 
