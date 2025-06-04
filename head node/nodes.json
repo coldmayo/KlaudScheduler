@@ -1,1 +1,45 @@
-[]
+[{
+		"hostname":	"192.168.1.101",
+		"cpus":	{
+			"cpu0":	{
+				"avail":	"OCCUPIED",
+				"core #":	"0"
+			},
+			"cpu1":	{
+				"avail":	"FREE",
+				"core #":	"1"
+			},
+			"cpu2":	{
+				"avail":	"FREE",
+				"core #":	"2"
+			},
+			"cpu3":	{
+				"avail":	"FREE",
+				"core #":	"3"
+			}
+		},
+		"gpus":	{
+		}
+	}, {
+		"hostname":	"192.168.1.102",
+		"cpus":	{
+			"cpu0":	{
+				"avail":	"OCCUPIED",
+				"core #":	"0"
+			},
+			"cpu1":	{
+				"avail":	"FREE",
+				"core #":	"1"
+			},
+			"cpu2":	{
+				"avail":	"FREE",
+				"core #":	"2"
+			},
+			"cpu3":	{
+				"avail":	"FREE",
+				"core #":	"3"
+			}
+		},
+		"gpus":	{
+		}
+	}]

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/sysinfo.h>
-#include <cjson/cJSON.h>
+#include "cJSON.h"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <string.h>
@@ -17,55 +17,89 @@ typedef struct {
 
 // update availability of the cores for each node
 void update_status(int core, char * host) {
-    FILE * fp = fopen("nodes.json", "r");
-	cJSON * node_array;
-	char core_id[5];
-	sprintf(core_id, "%d", core);
+    if (!host) return;  // Guard against NULL host
 
-	fseek(fp, 0, SEEK_END);
+    FILE * fp = fopen("nodes.json", "r+");
+    if (!fp) {
+        printf("Failed to open nodes.json");
+        fflush(stdout);
+        return;
+    }
+
+    fseek(fp, 0, SEEK_END);
     long file_size = ftell(fp);
     rewind(fp);
 
-    if (file_size > 0) {
-        char *buffer = (char *)malloc(file_size + 1);
-        fread(buffer, 1, file_size, fp);
-        buffer[file_size] = '\0';
-
-        node_array = cJSON_Parse(buffer);
-        free(buffer);
+    if (file_size <= 0) {
+        fclose(fp);
+        return;
     }
-    fclose(fp);	
+
+    char *buffer = (char *)malloc(file_size + 1);
+    if (!buffer) {
+        fclose(fp);
+        return;
+    }
+
+    if (fread(buffer, 1, file_size, fp) != file_size) {
+        free(buffer);
+        fclose(fp);
+        return;
+    }
+    buffer[file_size] = '\0';
+
+    cJSON * node_array = cJSON_Parse(buffer);
+    free(buffer);
+    fclose(fp);
+
+    if (!node_array) {
+        fprintf(stderr, "Failed to parse nodes.json\n");
+        return;
+    }
+
+    char core_id[10];
+    snprintf(core_id, sizeof(core_id), "%d", core);
 
     cJSON * node = NULL;
-
     cJSON_ArrayForEach(node, node_array) {
-		cJSON * cpu = cJSON_GetObjectItem(node, "cpus");
         cJSON * hostn = cJSON_GetObjectItem(node, "hostname");
-		cJSON * cpu_info = NULL;
-		cJSON_ArrayForEach(cpu_info, cpu) {
-			cJSON * core = cJSON_GetObjectItem(cpu_info, "core #");
-			cJSON * status = cJSON_GetObjectItem(cpu_info, "avail");
-			if (strcmp(core->valuestring, core_id) == 0 && strcmp(status->valuestring, "FREE") == 0 && strcmp(hostn->valuestring, host) == 0) {
-				cJSON_ReplaceItemInObject(cpu_info, "avail", cJSON_CreateString("OCCUPIED"));
-				break;
-			} else if (strcmp(core->valuestring, core_id) == 0 && strcmp(status->valuestring, "OCCUPIED") == 0) {
-				cJSON_ReplaceItemInObject(cpu_info, "avail", cJSON_CreateString("FREE"));
-				break;
-			}
-		}
+        if (!hostn || !hostn->valuestring) continue;
+
+        if (strcmp(hostn->valuestring, host) != 0) continue;
+
+        cJSON * cpus = cJSON_GetObjectItem(node, "cpus");
+        if (!cpus) continue;
+
+        cJSON * cpu_info = NULL;
+        cJSON_ArrayForEach(cpu_info, cpus) {
+            cJSON * core_json = cJSON_GetObjectItem(cpu_info, "core #");
+            cJSON * status = cJSON_GetObjectItem(cpu_info, "avail");
+
+            if (!core_json || !status ||
+                !core_json->valuestring || !status->valuestring) continue;
+
+            if (strcmp(core_json->valuestring, core_id) == 0) {
+                const char *new_status =
+                    (strcmp(status->valuestring, "FREE") == 0) ?
+                    "OCCUPIED" : "FREE";
+                cJSON_ReplaceItemInObject(cpu_info, "avail",
+                                        cJSON_CreateString(new_status));
+                break;
+            }
+        }
     }
-    
-    char *updated_json = cJSON_Print(node_array);
-	fp = fopen("nodes.json", "w");
+
+    fp = fopen("nodes.json", "w");
     if (fp) {
         char *json_string = cJSON_Print(node_array);
-        fprintf(fp, "%s", json_string);
-        free(json_string);
+        if (json_string) {
+            fprintf(fp, "%s", json_string);
+            free(json_string);
+        }
         fclose(fp);
     }
 
     cJSON_Delete(node_array);
-    
 }
 
 // Parse the resource string into a ResourceInfo structure
@@ -149,7 +183,7 @@ void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info
 }
 
 cJSON * check_nodes(const char * ip) {
-	char *info = from_node(ip);
+    char *info = from_node(ip);
     if (!info) {
         printf("Skipping %s due to connection failure.\n", ip);
         return NULL;

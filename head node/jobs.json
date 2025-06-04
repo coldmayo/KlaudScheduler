@@ -1,23 +1,85 @@
 [{
 		"job_id":	"300",
-		"command":	"pingus",
+		"command":	"./hello_mpi",
 		"resources":	{
-			"cpu":	4,
+			"cpu":	2,
 			"memory":	"idk",
 			"gpu":	0
 		},
-		"priority":	1,
+		"priority":	6,
+		"time":	2,
 		"output":	"outfile.out",
-		"status":	"QUEUED"
+		"status":	"DONE"
 	}, {
 		"job_id":	"301",
-		"command":	"pingus",
+		"command":	"./hello_mpi",
+		"resources":	{
+			"cpu":	2,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	8,
+		"time":	3,
+		"output":	"outfile.out",
+		"status":	"DONE"
+	}, {
+		"job_id":	"302",
+		"command":	"./hello_mpi",
 		"resources":	{
 			"cpu":	4,
 			"memory":	"idk",
 			"gpu":	0
 		},
-		"priority":	1,
+		"priority":	8,
+		"time":	2,
 		"output":	"outfile.out",
-		"status":	"QUEUED"
+		"status":	"DONE"
+	}, {
+		"job_id":	"303",
+		"command":	"./hello_mpi",
+		"resources":	{
+			"cpu":	0,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	2,
+		"time":	1,
+		"output":	"outfile.out",
+		"status":	"DONE"
+	}, {
+		"job_id":	"304",
+		"command":	"./hello_mpi",
+		"resources":	{
+			"cpu":	5,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	5,
+		"time":	0,
+		"output":	"outfile.out",
+		"status":	"DONE"
+	}, {
+		"job_id":	"305",
+		"command":	"./hello_mpi",
+		"resources":	{
+			"cpu":	4,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	4,
+		"time":	0,
+		"output":	"outfile.out",
+		"status":	"DONE"
+	}, {
+		"job_id":	"306",
+		"command":	"./hello_mpi",
+		"resources":	{
+			"cpu":	6,
+			"memory":	"idk",
+			"gpu":	0
+		},
+		"priority":	6,
+		"time":	0,
+		"output":	"outfile.out",
+		"status":	"DONE"
 	}]

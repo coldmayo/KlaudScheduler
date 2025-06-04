@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <cjson/cJSON.h>
+#include "cJSON.h"
 
 // Possible job status: RUNNING, QUEUED, DONE
 
@@ -37,7 +37,7 @@ int gen_id(void) {
         fclose(fp);
 		return 300;
     }
-    
+
     fclose(fp);
 	int ind;
     cJSON * job = NULL;
@@ -55,7 +55,7 @@ int chg_status(int id) {
 	char job_id[5];
 	cJSON * jobs_array;
 	sprintf(job_id, "%d", id);
-	
+
 	if (fp == NULL) {
 		return -1;
 	}
@@ -72,7 +72,7 @@ int chg_status(int id) {
         jobs_array = cJSON_Parse(buffer);
         free(buffer);
     }
-    fclose(fp);	
+    fclose(fp);
 
 	cJSON * job = NULL;
 	bool chgTime = false;
@@ -91,19 +91,27 @@ int chg_status(int id) {
 	}
 
 	if (chgTime) {
-		job = NULL;
-		cJSON_ArrayForEach(job, jobs_array) {
-			cJSON * status = cJSON_GetObjectItem(job, "status");
-			cJSON * time = cJSON_GetObjectItem(job, "time");
-			cJSON * cpu = cJSON_GetObjectItem(job, "cpu");
-			if (strcmp(status->valuestring, "QUEUED") == 0) {
-    			int new_time = atoi(time->valuestring)+1;
-				cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
-				int new_prior = get_priority(new_time, atoi(cpu->valuestring));
-				cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
-			}
-		}
-	}
+        cJSON *job = NULL;
+        cJSON_ArrayForEach(job, jobs_array) {
+            cJSON *status = cJSON_GetObjectItem(job, "status");
+            cJSON *time = cJSON_GetObjectItem(job, "time");
+            cJSON *cpu = cJSON_GetObjectItemCaseSensitive(job, "resources") ?
+                         cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItem(job, "resources"), "cpu") :
+                         NULL;
+
+            if (!status || !status->valuestring || !time || !cpu) {
+                continue;
+            }
+
+            if (strcmp(status->valuestring, "QUEUED") == 0) {
+                int new_time = time->valueint + 1;
+                cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
+
+                int new_prior = get_priority(new_time, cpu->valueint);
+                cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
+            }
+        }
+    }
 
 	char *updated_json = cJSON_Print(jobs_array);
 	fp = fopen("jobs.json", "w");

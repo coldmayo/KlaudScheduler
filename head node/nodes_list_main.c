@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <cjson/cJSON.h>
+#include "cJSON.h"
 #include "nodes_list.h"
 
 int main() {
-    const char *nodes[] = {"ip_address", "192.xx.xx"};
+    const char *nodes[] = {"192.168.1.101", "192.168.1.102"};
     int num_nodes = sizeof(nodes) / sizeof(nodes[0]);
 
     // Clear rankfile

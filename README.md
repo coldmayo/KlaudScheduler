@@ -1,13 +1,20 @@
-This is code for a resource manager I am building for my upcoming Beowulf cluster.
+# Klaud Scheduler
 
-I wanted to roll out some of my own software for my own learning purposes.
+This is code for a resource manager I am building for my Beowulf cluster. I wanted to roll out some of my own software for my own learning purposes after taking a Parallel Computing class.
 
-How to:
-We generate a file called nodes_list.json. This is a way to save all of the CPUs, GPUs, and their nodes. Run: gen_nodes_list.sh
+## How it works
 
-The plan:
-- JSON file where queued and running jobs
-- JSON file with node information
-- A job dispatcher determines how/where the job is deployed
-	- use sched_setaffinity() for a single CPU job
-	- use ssh or OpenMPI to run tasks on multiple CPUs
+Obviously, the directories named 'head node' and 'compute node' contain code that should be downloaded on the head and compute nodes respectfully.
+
+### Compute Node
+
+Only one executable to worry about, ```gen_nodes_list``` is ran while the same executable on the head node is ran to communicate with the head node to give compute node info for nodes.json
+
+### Head Node
+
+There will be 3 executables made when running the Makefile.
+1. ```gen_nodes_list```: Run this and this will populate the nodes.json file which gives information on all of the nodes and CPUs
+2. ```dispatch```: Should be running all the time, will continuosly check if a new job is submitted. If it is it will put it in the queue and execute when ready (using mpirun)
+3. ```main```: This is ran to submit a job into the queue
+
+Just a note, I have not tested any of this yet...
