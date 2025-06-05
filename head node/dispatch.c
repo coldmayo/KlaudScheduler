@@ -19,6 +19,11 @@ typedef struct {
 	bool free;
 } CPUout;
 
+typedef struct {
+	cJSON * job;
+	CPUout * c;
+} EXECUTE;
+
 char * ip_alias(char * ip) {
     FILE * hosts = fopen("/etc/hosts", "r");
     if (!hosts) return NULL;
@@ -218,9 +223,12 @@ void clean_up(cJSON * job, CPUout * c) {
     fflush(stdout);
 }
 
-void execute_job(cJSON * job, CPUout * c) {
-        printf("Starting Execution\n");
-        fflush(stdout);
+void execute_job(void * args) {
+    EXECUTE * input = (EXECUTE *) args;
+    CPUout * c = input->c;
+    cJSON * job = input->job;
+    printf("Starting Execution\n");
+    fflush(stdout);
 	//pthread_mutex_lock(&lock);
 	char cmd[300];
 	int i = 0;
@@ -345,6 +353,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
 
 // for now, only do CPU only jobs
 int main() {
+    int res;
     while (1) {
         pthread_mutex_lock(&lock);
         cJSON * job = find_job();
@@ -385,9 +394,20 @@ int main() {
             pthread_cond_wait(&cpu_available, &lock);
         }
 
+		// Make a seperate thread for 
         printf("Found %d core(s) for job %s\n", cpuNum, job_id->valuestring);
         fflush(stdout);
-        execute_job(job, &c);
+        pthread_t thread;
+        EXECUTE* input = malloc(sizeof(EXECUTE));
+        input->job = job;
+        input->c = malloc(sizeof(CPUout));
+        *(input->c) = c;
+        res = pthread_create(&thread, NULL, execute_job, input);
+        if (res != 0) {
+            printf("failed to make pthread");
+            fflush(stdout);
+        }
+        //execute_job(job, &c);
         pthread_mutex_unlock(&lock);
     }
     return 0;
