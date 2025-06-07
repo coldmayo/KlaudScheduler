@@ -9,6 +9,7 @@
 #include <string.h>
 #include "current_jobs.h"
 #include "nodes_list.h"
+#include "node_status.h"
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;

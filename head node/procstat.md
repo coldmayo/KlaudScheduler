@@ -30,6 +30,8 @@ Here's a list of what all of the columns mean:
 - irq: servicing interrupts
 - softirq: servicing softirqs
 
+cpu_usage % = 100*(user+nice+system+etc)/(idle+iowait)
+
 # Structure of Meminfo
 
 ```
