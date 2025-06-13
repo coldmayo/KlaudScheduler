@@ -7,89 +7,14 @@
 //#include <cjson/cJSON.h>
 #include <stdbool.h>
 #include <string.h>
-#include "current_jobs.h"
-#include "nodes_list.h"
-#include "node_status.h"
+#include "../includes/utils.h"
+#include "../includes/current_jobs.h"
+#include "../includes/types.h"
+#include "../includes/nodes_list.h"
+#include "../includes/node_status.h"
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;
-
-typedef struct {
-	int * cpu_cores;
-	char * hosts[20];
-	bool free;
-} CPUout;
-
-typedef struct {
-	cJSON * job;
-	CPUout * c;
-} EXECUTE;
-
-char * ip_alias(char * ip) {
-    FILE * hosts = fopen("/etc/hosts", "r");
-    if (!hosts) return NULL;
-
-    char line[200];
-    char *result = NULL;
-
-    while (fgets(line, sizeof(line), hosts)) {
-        if (line[0] == '#' || line[0] == '\n') continue;
-
-        char *line_cpy = strdup(line);
-        char *line_ip = strtok(line_cpy, " \t\n");
-
-        if (line_ip && strcmp(line_ip, ip) == 0) {
-            char *alias = strtok(NULL, " \t\n");
-            if (alias) {
-                result = strdup(alias);
-                free(line_cpy);
-                break;
-            }
-        }
-        free(line_cpy);
-    }
-
-    fclose(hosts);
-    return result;
-}
-
-void gen_rankfile(int id, CPUout * c) {
-        char file_name[40];
-        sprintf(file_name, "%d_rankfile.txt", id);
-        FILE *file = fopen(file_name, "w+");
-        
-        for (int i = 0; c->hosts[i] != NULL; i++) {
-	    fprintf(file, "rank %d=%s slot=%d\n", i, ip_alias(c->hosts[i]), c->cpu_cores[i]);
-	}
-	
-	fclose(file);
-}
-
-int cpu_ranks(char * hostname, int id) {
-    char file_name[40];
-    sprintf(file_name, "%d_rankfile.txt", id);
-    FILE *file = fopen(file_name, "r");
-    if (!file) return 0;
-
-    char line[100];
-    int count = 0;
-
-    while (fgets(line, sizeof(line), file)) {
-        char *rank_ptr = strstr(line, "rank ");
-        if (!rank_ptr) continue;
-
-        char *eq = strchr(rank_ptr, '=');
-        if (!eq) continue;
-
-        char *host = strtok(eq+1, " \t\n");
-        if (host && strcmp(host, hostname) == 0) {
-            count++;
-        }
-    }
-
-    fclose(file);
-    return count;
-}
 
 char * hostlist(CPUout * c, int id) {
     char * hosts = malloc(70 * sizeof(char));
@@ -185,21 +110,7 @@ cJSON * find_job() {
     //printf("Highest priority found: %d\n", biggest);
     cJSON_Delete(jobs_array);
 
-    if (biggest == 0) {char * ip_alias(char * ip) {
-    FILE * hosts = fopen("/etc/hosts", "r");
-    
-    char line[50];
-    bool found = false;
-    
-    while (fgets(line, sizeof(line), hosts)) {
-        if (line[0] == '#' || line[0] == '\n') {
-            continue;
-        }
-        
-        
-    }
-}
-        //printf("No QUEUED jobs found\n");
+    if (biggest == 0) {
         return NULL;
     }
 
@@ -224,7 +135,7 @@ void clean_up(cJSON * job, CPUout * c) {
     fflush(stdout);
 }
 
-void execute_job(void * args) {
+void * execute_job(void * args) {
     EXECUTE * input = (EXECUTE *) args;
     CPUout * c = input->c;
     cJSON * job = input->job;
@@ -233,10 +144,7 @@ void execute_job(void * args) {
 	//pthread_mutex_lock(&lock);
 	char cmd[300];
 	int i = 0;
-	char host_list[200] = "";
-	char core_list[30] = "";
-	int num_cores = 0;
-	
+
 	cJSON * run = cJSON_GetObjectItem(job, "command");
 	cJSON * id = cJSON_GetObjectItem(job, "job_id");
 	gen_rankfile(atoi(id->valuestring), c);
@@ -256,8 +164,9 @@ void execute_job(void * args) {
 	//pthread_mutex_unlock(&lock);
 
 	system(cmd);
-        printf("Finished!\n");
+    printf("Finished!\n");
 	clean_up(job, c);
+	return NULL;
 }
 
 void cpu_avail(int cpu_num, CPUout * c) {
@@ -355,7 +264,13 @@ void cpu_avail(int cpu_num, CPUout * c) {
 // for now, only do CPU only jobs
 int main() {
     int res;
+    int i = 0;
     while (1) {
+        if (i == 1000) {
+            updateNodeHealth();
+            i = 0;
+        }
+        
         pthread_mutex_lock(&lock);
         cJSON * job = find_job();
         if (!job) {
@@ -410,6 +325,7 @@ int main() {
         }
         //execute_job(job, &c);
         pthread_mutex_unlock(&lock);
+        i++;
     }
     return 0;
 }

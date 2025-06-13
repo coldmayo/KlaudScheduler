@@ -1,20 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "node_status.h"
-
-char * read_file(char * file_name) {
-	FILE * f;
-	f = fopen(file_name, "rb");
-	fseek(f, 0, SEEK_END);
-	long size = ftell(f);
-	rewind(f);
-	char * str = malloc(size+1);
-	size_t read_sz = fread(str, 1, size, f);
-	str[size] = '\0';
-	fclose(f);
-	return str;
-}
+#include <stdbool.h>
+#include <time.h>
+#include "cJSON.h"
+#include "../includes/utils.h"
+#include "../includes/node_status.h"
+#include "../includes/types.h"
 
 NODEINFO * node_info(char * hostname) {
 	char cmd[200];
@@ -76,4 +68,59 @@ NODEINFO * node_info(char * hostname) {
     free(cont2);
     free(conts);
 	return info;
+}
+
+void updateNodeHealth() {
+	NODEINFO * node_i = malloc(sizeof(NODEINFO));
+	FILE * fp = fopen("nodes.json", "r");
+
+	fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    rewind(fp);
+
+    if (file_size <= 0) {
+        fclose(fp);
+        return;
+    }
+
+    char *buffer = (char *)malloc(file_size + 1);
+    fread(buffer, 1, file_size, fp);
+    buffer[file_size] = '\0';
+    fclose(fp);
+
+    cJSON * node_array = cJSON_Parse(buffer);
+    free(buffer);
+
+	int i = 0;
+    cJSON * node = NULL;
+    cJSON_ArrayForEach(node, node_array) {
+		cJSON * host = cJSON_GetObjectItem(node, "hostname");
+		char * name = host->valuestring;
+		node_i = node_info(name);
+		i++;
+    }
+
+	FILE * nodeHFile = fopen("node_status.txt", "a");
+
+	time_t current_time;
+	struct tm *local_time;
+	current_time = time(&current_time);
+	local_time = localtime(&current_time);
+
+	char info[300];
+	char coreUse[150];
+	
+	for (int j = 0; j < node_i->num_cores; j++) {
+		char ind_use[40];
+		sprintf(ind_use, "Core slot %d usage: %f\n", j, node_i->coreUse[j]);
+		strcat(coreUse, ind_use);
+	}
+	
+	sprintf(info,"\nTime: %s\nInfo:\nCPU Use: %f\nCore Usage: %s\nRAM Usage: %f\n", asctime(local_time), node_i->cpuUse, coreUse, node_i->ram_usage);
+
+	fputs(info, nodeHFile);
+
+	fclose(nodeHFile);
+
+	cJSON_Delete(node_array);
 }

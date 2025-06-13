@@ -1,17 +1,36 @@
-compile:
-	@gcc -o gen_nodes_list nodes_list_main.c nodes_list.c cJSON.c nodes_list.h
-	@gcc -o dispatch dispatch.c current_jobs.c nodes_list.c cJSON.c current_jobs.h nodes_list.h
-	@gcc -o main main.c current_jobs.c current_jobs.h cJSON.c
-compile_nodes_list:
-	@gcc -o gen_nodes_list nodes_list.c cJSON.c
-compile_dispatcher:
-	@gcc -o dispatch dispatch.c current_jobs.c nodes_list.c current_jobs.h nodes_list.h cJSON.c
-compile_main:
-	@gcc -o main main.c current_jobs.c current_jobs.h
-run_dispach:
-	@./dispatch
-debug:
-	@gcc -g dispatch dispatch.c current_jobs.c nodes_list.c current_jobs.h nodes_list.h cJSON.c
-	@gdb ./dispatch
+CC := gcc
+CFLAGS := -Wall
+
+SRC := src
+INCLUDE := includes
+
+GEN_NODES_SRCS := $(SRC)/nodes_list_main.c $(SRC)/nodes_list.c $(SRC)/cJSON.c
+GEN_NODES_HDRS := $(INCLUDE)/nodes_list.h $(INCLUDE)/types.h
+DISPATCH_SRCS := $(SRC)/dispatch.c $(SRC)/current_jobs.c $(SRC)/nodes_list.c $(SRC)/cJSON.c $(SRC)/utils.c $(SRC)/node_status.c
+DISPATCH_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/nodes_list.h $(INCLUDE)/types.h
+MAIN_SRCS := $(SRC)/main.c $(SRC)/current_jobs.c $(SRC)/cJSON.c $(SRC)/utils.c
+MAIN_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/types.h $(INCLUDE)/utils.h
+
+all: gen_nodes_list dispatch main
+
+gen_nodes_list: $(GEN_NODES_SRCS) $(GEN_NODES_HDRS)
+	$(CC) $(CFLAGS) -o gen_nodes_list $(GEN_NODES_SRCS)
+
+dispatch: $(DISPATCH_SRCS) $(DISPATCH_HDRS)
+	$(CC) $(CFLAGS) -o dispatch $(DISPATCH_SRCS)
+
+main: $(MAIN_SRCS) $(MAIN_HDRS)
+	$(CC) $(CFLAGS) -o main $(MAIN_SRCS)
+
+run_dispatch:
+	./dispatch
+
 run_nodes:
-	@./gen_nodes_list
+	./gen_nodes_list
+
+debug:
+	$(CC) -g -o dispatch $(DISPATCH_SRCS)
+	gdb ./dispatch
+
+clean:
+	rm -f gen_nodes_list dispatch main

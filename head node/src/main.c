@@ -2,12 +2,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include "current_jobs.h"
-
-typedef struct {
-    int cores;
-    char *command;
-} E_Job;
+#include "../includes/current_jobs.h"
+#include "../includes/types.h"
 
 const char *list[2] = {"--num_cores", "--command"};
 

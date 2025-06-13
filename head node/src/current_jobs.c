@@ -113,7 +113,6 @@ int chg_status(int id) {
         }
     }
 
-	char *updated_json = cJSON_Print(jobs_array);
 	fp = fopen("jobs.json", "w");
     if (fp) {
         char *json_string = cJSON_Print(jobs_array);
