@@ -19,6 +19,26 @@ char * read_file(char * file_name) {
 	return str;
 }
 
+cJSON * read_json(char * filename) {
+    FILE * fp = fopen(filename, "r");
+	cJSON * array;
+
+	fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    rewind(fp);
+
+    if (file_size > 0) {
+        char *buffer = (char *)malloc(file_size + 1);
+        fread(buffer, 1, file_size, fp);
+        buffer[file_size] = '\0';
+
+        array = cJSON_Parse(buffer);
+        free(buffer);
+    }
+    fclose(fp);
+    return array;
+}
+
 char * ip_alias(char * ip) {
     FILE * hosts = fopen("/etc/hosts", "r");
     if (!hosts) return NULL;

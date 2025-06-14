@@ -5,40 +5,19 @@
 #include <stdbool.h>
 #include <string.h>
 #include "cJSON.h"
+#include "../includes/utils.h"
 
 // Possible job status: RUNNING, QUEUED, DONE
 
-int get_priority(int time, int cpus) {
-	int alpha = 2;
-	int beta = 1;
-	int prior = (time*alpha) + (cpus*beta);
+double get_priority(int time, int cpus) {
+	double alpha = 2.0;
+	double beta = 0.5;
+	double prior = (time*alpha) + (cpus*beta);
 	return prior;
 }
 
 int gen_id(void) {
-	FILE * fp = fopen("jobs.json", "r");
-	cJSON * jobs_array;
-	if (fp == NULL) {
-		return -1;
-	}
-
-	fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size > 0) {
-        char *buffer = (char *)malloc(file_size + 1);
-        fread(buffer, 1, file_size, fp);
-        buffer[file_size] = '\0';
-
-        jobs_array = cJSON_Parse(buffer);
-        free(buffer);
-    } else {
-        fclose(fp);
-		return 300;
-    }
-
-    fclose(fp);
+	cJSON * jobs_array = read_json("jobs.json");
 	int ind;
     cJSON * job = NULL;
     cJSON * id;
@@ -51,31 +30,11 @@ int gen_id(void) {
 }
 
 int chg_status(int id) {
-	FILE * fp = fopen("jobs.json", "r");
 	char job_id[5];
-	cJSON * jobs_array;
 	sprintf(job_id, "%d", id);
-
-	if (fp == NULL) {
-		return -1;
-	}
-
-	fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size > 0) {
-        char *buffer = (char *)malloc(file_size + 1);
-        fread(buffer, 1, file_size, fp);
-        buffer[file_size] = '\0';
-
-        jobs_array = cJSON_Parse(buffer);
-        free(buffer);
-    }
-    fclose(fp);
+    cJSON * jobs_array = read_json("jobs.json");
 
 	cJSON * job = NULL;
-	bool chgTime = false;
 	cJSON_ArrayForEach(job, jobs_array) {
 		cJSON * id = cJSON_GetObjectItem(job, "job_id");
 		cJSON * status = cJSON_GetObjectItem(job, "status");
@@ -85,35 +44,11 @@ int chg_status(int id) {
 			break;
 		} else if (strcmp(id->valuestring, job_id) == 0 && strcmp(status->valuestring, "RUNNING") == 0) {
 			cJSON_ReplaceItemInObject(job, "status", cJSON_CreateString("DONE"));
-			chgTime = true;
 			break;
 		}
 	}
 
-	if (chgTime) {
-        cJSON *job = NULL;
-        cJSON_ArrayForEach(job, jobs_array) {
-            cJSON *status = cJSON_GetObjectItem(job, "status");
-            cJSON *time = cJSON_GetObjectItem(job, "time");
-            cJSON *cpu = cJSON_GetObjectItemCaseSensitive(job, "resources") ?
-                         cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItem(job, "resources"), "cpu") :
-                         NULL;
-
-            if (!status || !status->valuestring || !time || !cpu) {
-                continue;
-            }
-
-            if (strcmp(status->valuestring, "QUEUED") == 0) {
-                int new_time = time->valueint + 1;
-                cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
-
-                int new_prior = get_priority(new_time, cpu->valueint);
-                cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
-            }
-        }
-    }
-
-	fp = fopen("jobs.json", "w");
+    FILE * fp = fopen("jobs.json", "w");
     if (fp) {
         char *json_string = cJSON_Print(jobs_array);
         fprintf(fp, "%s", json_string);
@@ -126,6 +61,39 @@ int chg_status(int id) {
 	return 0;
 }
 
+void update_time(double elapsed) {
+    cJSON * jobs_array = read_json("jobs.json");
+    cJSON *job = NULL;
+        cJSON_ArrayForEach(job, jobs_array) {
+            cJSON *status = cJSON_GetObjectItem(job, "status");
+            cJSON *time = cJSON_GetObjectItem(job, "time");
+            cJSON *cpu = cJSON_GetObjectItemCaseSensitive(job, "resources") ?
+                         cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItem(job, "resources"), "cpu") :
+                         NULL;
+
+            if (!status || !status->valuestring || !time || !cpu) {
+                continue;
+            }
+
+            if (strcmp(status->valuestring, "QUEUED") == 0) {
+                double new_time = time->valuedouble + elapsed;
+                cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
+
+                double new_prior = get_priority(new_time, cpu->valueint);
+                cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
+            }
+        }
+    FILE * fp = fopen("jobs.json", "w");
+    if (fp) {
+        char *json_string = cJSON_Print(jobs_array);
+        fprintf(fp, "%s", json_string);
+        free(json_string);
+        fclose(fp);
+    }
+
+    cJSON_Delete(jobs_array);
+}
+
 int clear_queue () {
 	FILE * fp = fopen("jobs.json", "w");
 	if (fp == NULL) {
@@ -136,24 +104,7 @@ int clear_queue () {
 }
 
 void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, int priority, const char *out, const char *stat) {
-    FILE *fp = fopen("jobs.json", "r");
-    cJSON *jobs_array = NULL;
-
-    if (fp) {
-        fseek(fp, 0, SEEK_END);
-        long file_size = ftell(fp);
-        rewind(fp);
-
-        if (file_size > 0) {
-            char *buffer = (char *)malloc(file_size + 1);
-            fread(buffer, 1, file_size, fp);
-            buffer[file_size] = '\0';
-
-            jobs_array = cJSON_Parse(buffer);
-            free(buffer);
-        }
-        fclose(fp);
-    }
+    cJSON *jobs_array = read_json("jobs.json");
 
     if (!cJSON_IsArray(jobs_array)) {
         jobs_array = cJSON_CreateArray();
@@ -176,7 +127,7 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, int p
 
     cJSON_AddItemToArray(jobs_array, job);
 
-    fp = fopen("jobs.json", "w");
+    FILE * fp = fopen("jobs.json", "w");
     if (fp) {
         char *json_string = cJSON_Print(jobs_array);
         fprintf(fp, "%s", json_string);

@@ -2,6 +2,7 @@
 #define types_h_INCLUDED
 
 #include "../src/cJSON.h"
+#include <time.h>
 #define MAX_CORES 256
 
 typedef struct {
@@ -13,6 +14,7 @@ typedef struct {
 typedef struct {
 	cJSON * job;
 	CPUout * c;
+	time_t start;
 } EXECUTE;
 
 typedef struct {

@@ -39,39 +39,7 @@ char * hostlist(CPUout * c, int id) {
 
 // for now, just doing jobs in submission order (First Come first Serve)
 cJSON * find_job() {
-    FILE * fp = fopen("jobs.json", "r");
-    if (!fp) {
-        printf("Failed to open jobs.json\n");
-        return NULL;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size <= 0) {
-        fclose(fp);
-        printf("Empty jobs file\n");
-        return NULL;
-    }
-
-    char *buffer = (char *)malloc(file_size + 1);
-    size_t read = fread(buffer, 1, file_size, fp);
-    if (read != file_size) {
-        free(buffer);
-        fclose(fp);
-        printf("File read error\n");
-        return NULL;
-    }
-    buffer[file_size] = '\0';
-    fclose(fp);
-
-    cJSON * jobs_array = cJSON_Parse(buffer);
-    free(buffer);
-    if (!jobs_array) {
-        printf("Failed to parse JSON\n");
-        return NULL;
-    }
+    cJSON * jobs_array = read_json("jobs.json");
 
     int biggest = 0;
     cJSON * biggest_job = NULL;
@@ -90,11 +58,11 @@ cJSON * find_job() {
         //printf("Checking job: status=%s, priority=%d\n", status->valuestring, priority->valueint);
 
         if (strcmp(status->valuestring, "QUEUED") == 0) {
-            int prior = priority->valueint;
-            printf("QUEUED job found with priority %d\n", prior);
+            double prior = priority->valuedouble;
+            printf("QUEUED job found with priority %f\n", prior);
 
             if (prior > biggest) {
-                printf("New highest priority: %d\n", prior);
+                printf("New highest priority: %f\n", prior);
                 biggest = prior;
                 if (biggest_job) {
                     cJSON_Delete(biggest_job);
@@ -117,12 +85,13 @@ cJSON * find_job() {
     return biggest_job;
 }
 
-void clean_up(cJSON * job, CPUout * c) {
+void clean_up(cJSON * job, CPUout * c, double time) {
 
     cJSON * id = cJSON_GetObjectItem(job, "job_id");
     printf("change job %s status to DONE\n", id->valuestring);
     fflush(stdout);
     chg_status(atoi(id->valuestring));
+    update_time(time);
 
     for (int i = 0; c->hosts[i] != NULL && i < 20; i++) {
         if (c->cpu_cores[i] == 0) continue;
@@ -139,6 +108,8 @@ void * execute_job(void * args) {
     EXECUTE * input = (EXECUTE *) args;
     CPUout * c = input->c;
     cJSON * job = input->job;
+    time_t start = input->start;
+    time_t end;
     printf("Starting Execution\n");
     fflush(stdout);
 	//pthread_mutex_lock(&lock);
@@ -165,7 +136,10 @@ void * execute_job(void * args) {
 
 	system(cmd);
     printf("Finished!\n");
-	clean_up(job, c);
+    time(&end);
+    double elapsed = difftime(end, start);
+
+	clean_up(job, c, elapsed);
 	return NULL;
 }
 
@@ -177,36 +151,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
         return;
     }
 
-    FILE * fp = fopen("nodes.json", "r");
-    if (!fp) {
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size <= 0) {
-        fclose(fp);
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
-
-    char *buffer = (char *)malloc(file_size + 1);
-    fread(buffer, 1, file_size, fp);
-    buffer[file_size] = '\0';
-    fclose(fp);
-
-    cJSON * node_array = cJSON_Parse(buffer);
-    free(buffer);
-    if (!node_array) {
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
+    cJSON * node_array = read_json("nodes.json");
 
     int cpu_av = 0;
     cJSON * node = NULL;
@@ -261,22 +206,41 @@ void cpu_avail(int cpu_num, CPUout * c) {
     }
 }
 
+void * check_time(void * args) {
+    time_t start, check;
+    time(&start);
+	while (1) {
+		time(&check);
+    	double time_diff = difftime(check, start);
+    	if (time_diff >= 10.0) {
+        	updateNodeHealth();
+        	start = 0;
+        	check = 0;
+        	time(&start);
+    	}
+	}
+}
+
 // for now, only do CPU only jobs
 int main() {
-    int res;
+    int res, other_res;
     int i = 0;
+    time_t start;
+    
+    // Every 10 seconds track cpu health
+    pthread_t stat_thread;
+    other_res = pthread_create(&stat_thread, NULL, check_time, NULL);
+    if (other_res != 0) {
+        printf("Could not create thread :(");
+    }
+
     while (1) {
-        if (i == 1000) {
-            updateNodeHealth();
-            i = 0;
-        }
-        
+        time(&start);
+		
         pthread_mutex_lock(&lock);
         cJSON * job = find_job();
         if (!job) {
-            //printf("No jobs");
             pthread_mutex_unlock(&lock);
-            //sleep(1);
             continue;
         }
 
@@ -310,13 +274,14 @@ int main() {
             pthread_cond_wait(&cpu_available, &lock);
         }
 
-		// Make a seperate thread for 
+		// Make a seperate thread for executing the job
         printf("Found %d core(s) for job %s\n", cpuNum, job_id->valuestring);
         fflush(stdout);
         pthread_t thread;
         EXECUTE* input = malloc(sizeof(EXECUTE));
         input->job = job;
         input->c = malloc(sizeof(CPUout));
+        input->start = start;
         *(input->c) = c;
         res = pthread_create(&thread, NULL, execute_job, input);
         if (res != 0) {
