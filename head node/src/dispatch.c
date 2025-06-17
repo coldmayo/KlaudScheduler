@@ -7,83 +7,15 @@
 //#include <cjson/cJSON.h>
 #include <stdbool.h>
 #include <string.h>
-#include "current_jobs.h"
-#include "nodes_list.h"
+#include "../includes/utils.h"
+#include "../includes/current_jobs.h"
+#include "../includes/types.h"
+#include "../includes/nodes_list.h"
+#include "../includes/node_status.h"
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;
-
-typedef struct {
-	int * cpu_cores;
-	char * hosts[20];
-	bool free;
-} CPUout;
-
-char * ip_alias(char * ip) {
-    FILE * hosts = fopen("/etc/hosts", "r");
-    if (!hosts) return NULL;
-
-    char line[200];
-    char *result = NULL;
-
-    while (fgets(line, sizeof(line), hosts)) {
-        if (line[0] == '#' || line[0] == '\n') continue;
-
-        char *line_cpy = strdup(line);
-        char *line_ip = strtok(line_cpy, " \t\n");
-
-        if (line_ip && strcmp(line_ip, ip) == 0) {
-            char *alias = strtok(NULL, " \t\n");
-            if (alias) {
-                result = strdup(alias);
-                free(line_cpy);
-                break;
-            }
-        }
-        free(line_cpy);
-    }
-
-    fclose(hosts);
-    return result;
-}
-
-void gen_rankfile(int id, CPUout * c) {
-        char file_name[40];
-        sprintf(file_name, "%d_rankfile.txt", id);
-        FILE *file = fopen(file_name, "w+");
-        
-        for (int i = 0; c->hosts[i] != NULL; i++) {
-	    fprintf(file, "rank %d=%s slot=%d\n", i, ip_alias(c->hosts[i]), c->cpu_cores[i]);
-	}
-	
-	fclose(file);
-}
-
-int cpu_ranks(char * hostname, int id) {
-    char file_name[40];
-    sprintf(file_name, "%d_rankfile.txt", id);
-    FILE *file = fopen(file_name, "r");
-    if (!file) return 0;
-
-    char line[100];
-    int count = 0;
-
-    while (fgets(line, sizeof(line), file)) {
-        char *rank_ptr = strstr(line, "rank ");
-        if (!rank_ptr) continue;
-
-        char *eq = strchr(rank_ptr, '=');
-        if (!eq) continue;
-
-        char *host = strtok(eq+1, " \t\n");
-        if (host && strcmp(host, hostname) == 0) {
-            count++;
-        }
-    }
-
-    fclose(file);
-    return count;
-}
 
 char * hostlist(CPUout * c, int id) {
     char * hosts = malloc(70 * sizeof(char));
@@ -108,39 +40,7 @@ char * hostlist(CPUout * c, int id) {
 
 // for now, just doing jobs in submission order (First Come first Serve)
 cJSON * find_job() {
-    FILE * fp = fopen("jobs.json", "r");
-    if (!fp) {
-        printf("Failed to open jobs.json\n");
-        return NULL;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size <= 0) {
-        fclose(fp);
-        printf("Empty jobs file\n");
-        return NULL;
-    }
-
-    char *buffer = (char *)malloc(file_size + 1);
-    size_t read = fread(buffer, 1, file_size, fp);
-    if (read != file_size) {
-        free(buffer);
-        fclose(fp);
-        printf("File read error\n");
-        return NULL;
-    }
-    buffer[file_size] = '\0';
-    fclose(fp);
-
-    cJSON * jobs_array = cJSON_Parse(buffer);
-    free(buffer);
-    if (!jobs_array) {
-        printf("Failed to parse JSON\n");
-        return NULL;
-    }
+    cJSON * jobs_array = read_json("jobs.json");
 
     int biggest = 0;
     cJSON * biggest_job = NULL;
@@ -159,11 +59,11 @@ cJSON * find_job() {
         //printf("Checking job: status=%s, priority=%d\n", status->valuestring, priority->valueint);
 
         if (strcmp(status->valuestring, "QUEUED") == 0) {
-            int prior = priority->valueint;
-            printf("QUEUED job found with priority %d\n", prior);
+            double prior = priority->valuedouble;
+            printf("QUEUED job found with priority %f\n", prior);
 
             if (prior > biggest) {
-                printf("New highest priority: %d\n", prior);
+                printf("New highest priority: %f\n", prior);
                 biggest = prior;
                 if (biggest_job) {
                     cJSON_Delete(biggest_job);
@@ -179,76 +79,100 @@ cJSON * find_job() {
     //printf("Highest priority found: %d\n", biggest);
     cJSON_Delete(jobs_array);
 
-    if (biggest == 0) {char * ip_alias(char * ip) {
-    FILE * hosts = fopen("/etc/hosts", "r");
-    
-    char line[50];
-    bool found = false;
-    
-    while (fgets(line, sizeof(line), hosts)) {
-        if (line[0] == '#' || line[0] == '\n') {
-            continue;
-        }
-        
-        
-    }
-}
-        //printf("No QUEUED jobs found\n");
+    if (biggest == 0) {
         return NULL;
     }
 
     return biggest_job;
 }
 
-void clean_up(cJSON * job, CPUout * c) {
-
+void clean_up(cJSON * job, CPUout * c, double time) {
+    if (!job || !c) {
+        printf("NULL JOB or CPUout in cleanup()\n");
+    }
     cJSON * id = cJSON_GetObjectItem(job, "job_id");
     printf("change job %s status to DONE\n", id->valuestring);
     fflush(stdout);
     chg_status(atoi(id->valuestring));
-
+    update_time(time);
     for (int i = 0; c->hosts[i] != NULL && i < 20; i++) {
         if (c->cpu_cores[i] == 0) continue;
         printf("Change core %d status from host %s\n", c->cpu_cores[i], c->hosts[i]);
         fflush(stdout);
         update_status(c->cpu_cores[i], c->hosts[i]);
     }
-
     printf("Cleaned up job %s\n", id->valuestring);
     fflush(stdout);
 }
 
-void execute_job(cJSON * job, CPUout * c) {
-        printf("Starting Execution\n");
+void * execute_job(void * args) {
+    EXECUTE * input = (EXECUTE *) args;
+    CPUout * c = input->c;
+    time_t start = input->start;
+    time_t end;
+    char * hosts;
+    printf("Starting Execution\n");
+    fflush(stdout);
+    char cmd[700];
+    char rankfile_name[40];
+
+    cJSON * job_copy = cJSON_Duplicate(input->job, 1);
+    free(input);
+
+    if (!job_copy) {
+        printf("Failed to duplicate JSON info for job :(");
         fflush(stdout);
-	//pthread_mutex_lock(&lock);
-	char cmd[300];
-	int i = 0;
-	char host_list[200] = "";
-	char core_list[30] = "";
-	int num_cores = 0;
+        goto clean_cpu;
+    }
+	cJSON * run = cJSON_GetObjectItem(job_copy, "command");
+	cJSON * id = cJSON_GetObjectItem(job_copy, "job_id");
+	cJSON * outf = cJSON_GetObjectItem(job_copy, "output");
 	
-	cJSON * run = cJSON_GetObjectItem(job, "command");
-	cJSON * id = cJSON_GetObjectItem(job, "job_id");
+	char outfile[255];
+	if (strcmp("\0", outf->valuestring) == 0) {
+	    sprintf(outfile, "%s_output.out", id->valuestring);
+	} else {
+	    sprintf(outfile, "%s", outf->valuestring);
+	}
+	
 	gen_rankfile(atoi(id->valuestring), c);
+
 	// rankfile format: rank <rank_id>=<hostname> slot=<core_binding>
 	// make rankfile for every task it seems
-	printf("%s\n", hostlist(c, atoi(id->valuestring)));
+
+    hosts = hostlist(c, atoi(id->valuestring));
+	printf("Hosts: %s\n", hosts);
 	fflush(stdout);
-	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt %s 2>&1 | tee %s_output.txt", hostlist(c, atoi(id->valuestring)), id->valuestring, run->valuestring, id->valuestring);
+    sprintf(rankfile_name, "%s_rankfile.txt", id->valuestring);
+
+	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt %s 2>&1 | tee %s", hosts, id->valuestring, run->valuestring, outfile);
 	printf("%s\n", cmd);
 	fflush(stdout);
-	i = 0;
-	while (c->hosts[i] != NULL) {
-		update_status(c->cpu_cores[i], c->hosts[i]);
-		i++;
-	}
-	chg_status(atoi(id->valuestring));
-	//pthread_mutex_unlock(&lock);
-
-	system(cmd);
-        printf("Finished!\n");
-	clean_up(job, c);
+	
+    // run job
+    
+    system(cmd);
+    printf("Finished!\n");
+    time(&end);
+    pthread_mutex_lock(&lock);
+    clean_up(job_copy, c, difftime(end, start));
+    pthread_mutex_unlock(&lock);
+    
+    // cleaning
+    
+    remove(rankfile_name);
+    cJSON_Delete(job_copy);
+clean_cpu:
+    //printf("print");
+    fflush(stdout);
+    for (int i = 0; c->hosts[i] != NULL && i < c->num_hosts; i++) {
+        free(c->hosts[i]);
+    }
+    free(c->cpu_cores);
+    free(c);
+    
+    pthread_cond_signal(&cpu_available);
+    return NULL;
 }
 
 void cpu_avail(int cpu_num, CPUout * c) {
@@ -259,36 +183,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
         return;
     }
 
-    FILE * fp = fopen("nodes.json", "r");
-    if (!fp) {
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
-
-    if (file_size <= 0) {
-        fclose(fp);
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
-
-    char *buffer = (char *)malloc(file_size + 1);
-    fread(buffer, 1, file_size, fp);
-    buffer[file_size] = '\0';
-    fclose(fp);
-
-    cJSON * node_array = cJSON_Parse(buffer);
-    free(buffer);
-    if (!node_array) {
-        c->free = false;
-        free(cpus_needed);
-        return;
-    }
+    cJSON * node_array = read_json("nodes.json");
 
     int cpu_av = 0;
     cJSON * node = NULL;
@@ -329,7 +224,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
     }
 
     cJSON_Delete(node_array);
-
+    c->num_hosts = cpu_av;
     if (cpu_av >= cpu_num) {
         c->cpu_cores = cpus_needed;
         //printf("free");
@@ -343,18 +238,47 @@ void cpu_avail(int cpu_num, CPUout * c) {
     }
 }
 
+void * check_time(void * args) {
+    time_t start, check;
+    time(&start);
+	while (1) {
+	    time(&check);
+    	    double time_diff = difftime(check, start);
+    	    if (time_diff >= 10.0) {
+        	//printf("It has been 5 sec\n");
+        	updateNodeHealth();
+        	start = 0;
+        	check = 0;
+        	time(&start);
+    	    }
+	}
+}
+
 // for now, only do CPU only jobs
 int main() {
+    int res, other_res;
+    int i = 0;
+    time_t start;
+
+    pthread_t stat_thread;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    
+    // Every 10 seconds track cpu health
+    other_res = pthread_create(&stat_thread, NULL, check_time, NULL);
+    if (other_res != 0) {
+        printf("Could not create thread :(");
+    }
     while (1) {
+        time(&start);
         pthread_mutex_lock(&lock);
         cJSON * job = find_job();
         if (!job) {
-            //printf("No jobs");
             pthread_mutex_unlock(&lock);
-            //sleep(1);
             continue;
         }
-
+        
         cJSON * job_id = cJSON_GetObjectItem(job, "job_id");
         printf("Found a job: %s\n", job_id->valuestring);
         fflush(stdout);
@@ -375,20 +299,53 @@ int main() {
         int cpuNum = cpu_num->valueint;
         printf("# CPUs required by job %s are %d\n", job_id->valuestring, cpuNum);
         fflush(stdout);
-        CPUout c = {0};
+        CPUout* c = malloc(sizeof(CPUout));
+        cpu_avail(cpuNum, c);
 
-        cpu_avail(cpuNum, &c);
-
-        if (!c.free) {
+        while (!c->free) {
             printf("Not avail\n");
             fflush(stdout);
+            free(c);
             pthread_cond_wait(&cpu_available, &lock);
+            
+            c=malloc(sizeof(CPUout));
+            cpu_avail(cpuNum, c);
         }
 
+	// Make a separate thread for executing the job
+	
         printf("Found %d core(s) for job %s\n", cpuNum, job_id->valuestring);
         fflush(stdout);
-        execute_job(job, &c);
+
+        // Make sure the job is set to running, we don't want the same job to happen multiple times
+        cJSON * stat = cJSON_GetObjectItem(job, "status");
+        printf("Changing status of job %d from %s to RUNNING\n", atoi(job_id->valuestring), stat->valuestring);
+        chg_status(atoi(job_id->valuestring));
+        // Set the cores that will be used to Occupied so other jobs wont take them while this job is running
+        int j = 0;
+        while (c->hosts[j] != NULL) {
+            update_status(c->cpu_cores[j], c->hosts[j]);
+            j++;
+        }
+
+        pthread_t thread;
+        EXECUTE* input = malloc(sizeof(EXECUTE));
+        input->job = cJSON_Duplicate(job, 1);
+        input->c = malloc(sizeof(CPUout));
+        input->c = c;
+        input->start = start;
+
+        if (pthread_create(&thread, NULL, execute_job, input) != 0) {
+            printf("failed to make pthread");
+            fflush(stdout);
+            free(input->c);
+            free(input);
+            pthread_mutex_unlock(&lock);
+            continue;
+        }
         pthread_mutex_unlock(&lock);
+        i++;
     }
+    pthread_attr_destroy(&attr);
     return 0;
 }

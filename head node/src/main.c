@@ -2,14 +2,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include "current_jobs.h"
+#include "../includes/current_jobs.h"
+#include "../includes/types.h"
 
-typedef struct {
-    int cores;
-    char *command;
-} E_Job;
-
-const char *list[2] = {"--num_cores", "--command"};
+const char *list[3] = {"--num_cores", "--command", "--outfile"};
 
 int check_args(const char *arg) {
     char temp[100];
@@ -21,7 +17,7 @@ int check_args(const char *arg) {
         return -1;
     }
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         if (strcmp(token, list[i]) == 0) {
             return i;
         }
@@ -31,6 +27,7 @@ int check_args(const char *arg) {
 
 void get_info(int argc, char *argv[], E_Job *job) {
     job->command = malloc(256);
+    job->outfile = malloc(256);
     if (!job->command) {
         printf("Memory allocation failed!\n");
         exit(EXIT_FAILURE);
@@ -50,6 +47,12 @@ void get_info(int argc, char *argv[], E_Job *job) {
                 strncpy(job->command, value + 1, 255);
                 job->command[255] = '\0';
             }
+        } else if (index == 2) {
+            char *value = strchr(argv[i], '=');
+            if (value) {
+                strncpy(job->outfile, value+1, 255);
+                job->command[255] = '\0';
+            }
         } else {
             printf("Unknown argument: %s\n", argv[i]);
         }
@@ -58,17 +61,22 @@ void get_info(int argc, char *argv[], E_Job *job) {
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
-        printf("Usage: ./main --num_cores=<num> --command=\"<cmd>\"\n");
+wrong:
+        printf("Usage: ./main --num_cores=<num> --command=\"<command>\" --output=\"<output file>\"\n");
         return EXIT_FAILURE;
     }
 
-    E_Job job = {0, NULL};
+    E_Job job = {0, NULL, NULL};
     get_info(argc, argv, &job);
-
+    if (job.cores == 0) {
+        goto wrong;
+    } else if (strcmp(job.command, "\0") == 0) {
+        goto wrong;
+    }
     printf("Cores: %d\n", job.cores);
     printf("Command: %s\n", job.command);
-
-    save_job(gen_id(), job.command, job.cores, "idk", 0, get_priority(0, job.cores), "outfile.out", "QUEUED");
+  
+    save_job(gen_id(), job.command, job.cores, "idk", 0, get_priority(0, job.cores), job.outfile, "QUEUED");
 
     free(job.command);
     return 0;

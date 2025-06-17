@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "cJSON.h"
-#include "nodes_list.h"
+#include "../includes/nodes_list.h"
 
 int main() {
     const char *nodes[] = {"192.168.1.101", "192.168.1.102"};

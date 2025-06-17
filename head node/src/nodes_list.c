@@ -6,14 +6,9 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <unistd.h>
+#include "../includes/types.h"
 
 #define PORT 5000
-#define MAX_CORES 256
-
-typedef struct {
-    int count;
-    int cores[MAX_CORES];
-} ResourceInfo;
 
 // update availability of the cores for each node
 void update_status(int core, char * host) {
