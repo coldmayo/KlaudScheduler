@@ -3,11 +3,13 @@
 
 #include "../src/cJSON.h"
 #include <time.h>
+#include <stdbool.h>
 #define MAX_CORES 256
 
 typedef struct {
 	int * cpu_cores;
-	char * hosts[20];
+	char * hosts[100];
+	int num_hosts;
 	bool free;
 } CPUout;
 
@@ -20,6 +22,7 @@ typedef struct {
 typedef struct {
     int cores;
     char *command;
+    char * outfile;
 } E_Job;
 
 typedef struct {

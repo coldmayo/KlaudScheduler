@@ -17,8 +17,11 @@ double get_priority(int time, int cpus) {
 }
 
 int gen_id(void) {
-	cJSON * jobs_array = read_json("jobs.json");
-	int ind;
+    cJSON * jobs_array = read_json("jobs.json");
+    if (cJSON_GetArraySize(jobs_array) == 0) {
+        return 1000;
+    }
+    int ind;
     cJSON * job = NULL;
     cJSON * id;
     cJSON_ArrayForEach(job, jobs_array) {
@@ -29,16 +32,16 @@ int gen_id(void) {
     return ind+1;
 }
 
-int chg_status(int id) {
+int chg_status(int id_) {
 	char job_id[5];
-	sprintf(job_id, "%d", id);
+	sprintf(job_id, "%d", id_);
     cJSON * jobs_array = read_json("jobs.json");
 
 	cJSON * job = NULL;
 	cJSON_ArrayForEach(job, jobs_array) {
 		cJSON * id = cJSON_GetObjectItem(job, "job_id");
 		cJSON * status = cJSON_GetObjectItem(job, "status");
-
+                
 		if (strcmp(id->valuestring, job_id) == 0 && strcmp(status->valuestring, "QUEUED") == 0) {
 			cJSON_ReplaceItemInObject(job, "status", cJSON_CreateString("RUNNING"));
 			break;
@@ -103,17 +106,18 @@ int clear_queue () {
 	return 0;
 }
 
-void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, int priority, const char *out, const char *stat) {
+void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, double priority, const char *out, const char *stat) {
+    fflush(stdout);
+    
     cJSON *jobs_array = read_json("jobs.json");
-
-    if (!cJSON_IsArray(jobs_array)) {
+    if (!jobs_array || !cJSON_IsArray(jobs_array)) {
+        if (jobs_array) cJSON_Delete(jobs_array);
         jobs_array = cJSON_CreateArray();
     }
 
     cJSON *job = cJSON_CreateObject();
     cJSON_AddStringToObject(job, "job_id", cJSON_Print(cJSON_CreateNumber(id)));
     cJSON_AddStringToObject(job, "command", comm);
-
     cJSON *resources = cJSON_CreateObject();
     cJSON_AddNumberToObject(resources, "cpu", cpu);
     cJSON_AddStringToObject(resources, "memory", mem);

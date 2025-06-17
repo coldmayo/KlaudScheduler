@@ -21,9 +21,14 @@ char * read_file(char * file_name) {
 
 cJSON * read_json(char * filename) {
     FILE * fp = fopen(filename, "r");
-	cJSON * array;
+    if (!fp) {
+        printf("File does not exist");
+        fflush(stdout);
+        return cJSON_CreateArray();
+    }
+    cJSON * array = NULL;
 
-	fseek(fp, 0, SEEK_END);
+    fseek(fp, 0, SEEK_END);
     long file_size = ftell(fp);
     rewind(fp);
 
@@ -34,6 +39,10 @@ cJSON * read_json(char * filename) {
 
         array = cJSON_Parse(buffer);
         free(buffer);
+    } else {
+        //printf("Empty File\n");
+        fflush(stdout);
+        array = cJSON_CreateArray();
     }
     fclose(fp);
     return array;
