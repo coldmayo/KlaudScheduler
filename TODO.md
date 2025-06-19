@@ -1,9 +1,9 @@
 Open up an issue for any features you want to see in the future!
 
-- [ ] Make better Documentation, it sucks at the moment
+- [x] Make better Documentation, it sucks at the moment
+	- I guess I will be working on this as I go along
 - [x] Make more MPI examples
 	- Made a MPI program that calculates the digits of pi using the Monte Carlo method
-- [ ] Figure out how this would work in a situation with muliple users
 - [x] Make executing mpirun and the scheduler work on different threads (things are kind of running linearly at the moment)
 	- The goal is to be able to run multiple MPI programs in parallel
 	- [x] I put execute_job() on a different thread, TEST THIS
@@ -15,6 +15,16 @@ Open up an issue for any features you want to see in the future!
 	- etc
 - [x] Take actual time into account instead of counting the # of jobs ran before
 	- [x] TEST THIS
-- [ ] Similarly to .slurm files, make a way to submit a job through a .klaud file instead
+- [x] Similarly to .slurm files, make a way to submit a job through a .klaud file instead
+	- Mostly works, test to see if the command actually works
+- [ ] Figure out how this would work in a situation with muliple users
 - [ ] GPU stuff
 	- Don't have any GPUs in my cluster atm so I can't develop for or test this yet
+- [ ] Integrate the use of the klaudconfig file
+	- Can be used to exclude aliases
+		- Come up with more uses for this
+- [ ] Instead of the current nodes.json population strat, use ssh to get node info (like node_status.c)
+	- Also use klaudconfig to filter out nodes not needed :>
+- [ ] Add a way for the user to set a maximum runtime
+- [ ] Email notifications to alert when a job starts running and finishes
+- [ ] Figure out how to make ./main an actual global command, seems like it would be convienent

@@ -1,0 +1,7 @@
+#!/bin/bash
+#KLAUD --outfile="pingus.out"
+#KLAUD --num_cores=3
+
+./examples/hello_mpi.c
+
+echo "What's up nodes, it's ya boy Klaud back again with another job. Remember to like and NOT oversubscribe"
