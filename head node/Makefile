@@ -4,8 +4,8 @@ CFLAGS := -Wall
 SRC := src
 INCLUDE := includes
 
-GEN_NODES_SRCS := $(SRC)/nodes_list_main.c $(SRC)/nodes_list.c $(SRC)/cJSON.c
-GEN_NODES_HDRS := $(INCLUDE)/nodes_list.h $(INCLUDE)/types.h
+GEN_NODES_SRCS := $(SRC)/nodes_list_main.c $(SRC)/nodes_list.c $(SRC)/cJSON.c $(SRC)/utils.c
+GEN_NODES_HDRS := $(INCLUDE)/nodes_list.h $(INCLUDE)/types.h $(INCLUDE)/utils.h
 DISPATCH_SRCS := $(SRC)/dispatch.c $(SRC)/current_jobs.c $(SRC)/nodes_list.c $(SRC)/cJSON.c $(SRC)/utils.c $(SRC)/node_status.c
 DISPATCH_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/nodes_list.h $(INCLUDE)/types.h
 MAIN_SRCS := $(SRC)/main.c $(SRC)/current_jobs.c $(SRC)/cJSON.c $(SRC)/utils.c $(SRC)/klaud_files.c

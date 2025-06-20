@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "../includes/types.h"
+#include "../includes/utils.h"
 
 #define PORT 5000
 
@@ -156,6 +157,52 @@ char *from_node(const char *ip) {
     return buffer;
 }
 
+char * from_node_ssh(const char * ip) {
+
+    // For CPUs
+	char cmd[400];
+	char ret[100];
+	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > .stat.txt", ip);
+	system(cmd);
+
+	NODEINFO * info = malloc(sizeof(NODEINFO));
+	memset(info, 0, sizeof(NODEINFO));
+	char * conts = read_file(".stat.txt");
+
+    char *ptr = conts;
+    int cnt = 0;
+    int ids[40];
+    while ((ptr = strstr(ptr, "cpu")) != NULL) {
+        int core, user, nice, system, idle, iowait, irq, softirq;
+        if (sscanf(ptr, "cpu%d %d %d %d %d %d %d %d", &core, &user, &nice, &system, &idle, &iowait, &irq, &softirq) == 8) {
+            ids[cnt] = core;
+            cnt++;
+        }
+        ptr++;
+    }
+
+    sprintf(ret, "%d:", cnt);
+    int i;
+    for (i = 0; cnt > i; i++) {
+        char str[20];
+        sprintf(str, "%d,", ids[i]);
+		strcat(ret, str);
+    }
+
+	int len = strlen(ret);
+	if (len > 0 && ret[len - 1] == ',') {
+		ret[len - 1] = '-';
+	}
+
+    info->num_cores = cnt;
+    free(conts);
+
+    // Do GPUs later
+
+	remove(".stat.txt");
+	return strdup(ret);
+}
+
 void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info, const char *hostname) {
     FILE *file = fopen("rankfile.txt", "a");
     if (!file) {
@@ -177,8 +224,15 @@ void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info
     fclose(file);
 }
 
-cJSON * check_nodes(const char * ip) {
-    char *info = from_node(ip);
+
+cJSON * check_nodes(const char * ip, bool tcp) {
+    char * info;
+    if (tcp) {
+		info = from_node(ip);
+    } else {
+		info = from_node_ssh(ip);
+    }
+    
     if (!info) {
         printf("Skipping %s due to connection failure.\n", ip);
         return NULL;

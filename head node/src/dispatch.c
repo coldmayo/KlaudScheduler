@@ -256,7 +256,7 @@ void * check_time(void * args) {
 
 // for now, only do CPU only jobs
 int main() {
-    int res, other_res;
+    int other_res;
     int i = 0;
     time_t start;
 
