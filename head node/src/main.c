@@ -116,8 +116,8 @@ wrong:
     
     printf("Cores: %d\n", job.cores);
     printf("Command: %s\n", job.command);
-  
-    save_job(gen_id(), job.command, job.cores, "idk", 0, get_priority(0, job.cores), job.outfile, "QUEUED");
+ 	int id = gen_id(); 
+    save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED");
 
     free(job.command);
     return 0;

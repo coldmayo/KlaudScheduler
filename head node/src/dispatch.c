@@ -246,11 +246,11 @@ void * check_time(void * args) {
     	    double time_diff = difftime(check, start);
     	    if (time_diff >= 10.0) {
         	//printf("It has been 5 sec\n");
-        	updateNodeHealth();
-        	start = 0;
-        	check = 0;
-        	time(&start);
-    	    }
+        		updateNodeHealth();
+        		start = 0;
+        		check = 0;
+        		time(&start);
+    		}
 	}
 }
 

@@ -19,6 +19,75 @@ char * read_file(char * file_name) {
 	return str;
 }
 
+ConfigInfo * get_config_info() {
+	FILE * config = fopen("klaudrc", "r");
+
+	char line[200];
+
+	ConfigInfo * info = malloc(sizeof(ConfigInfo));
+
+	// Setting defaults just in case
+	info->priority_type = strdup("SJF");
+	info->lottery = false;
+	info->aging = true;
+	info->ignore_hosts = malloc(100 * sizeof(char *));
+	info->get_nodes_strat = strdup("SSH");
+
+	while (fgets(line, sizeof(line), config)) {
+		if (line[0] == '#' || line[0] == '\n') {
+			continue;
+		}
+
+    	line[strcspn(line, "\n")] = '\0';
+
+		// Check for these in the config file:
+    	if (sscanf(line, "set-priority %ms", &info->priority_type) == 1) {
+			continue;
+    	}
+    	if (sscanf(line, "set-nodes-strat %ms", &info->get_nodes_strat) == 1) {
+			continue;
+    	}
+
+    	char * boolstr;
+    		
+    	if (sscanf(line, "set-priority-lottery %ms", &boolstr) == 1) {
+			if (strcmp(boolstr, "true") == 0) {
+				info->lottery = true;
+    		} else if (strcmp(boolstr, "false") == 0) {
+				info->lottery = false;
+    		}
+    		continue;
+    	}
+
+		if (sscanf(line, "set-priority-aging %ms", &boolstr) == 1) {
+			if (strcmp(boolstr, "true") == 0) {
+				info->aging = true;
+    		} else if (strcmp(boolstr, "false") == 0) {
+				info->aging = false;
+    		}
+    		continue;
+		}
+    	free(boolstr);
+
+    	char * hosts;
+    	if (sscanf(line, "ignore-host %ms", &hosts) == 1) {
+			char * token = strtok(hosts, " ");
+    		int i = 0;
+    		while (token != NULL) {
+				info->ignore_hosts[i] = strdup(token);
+				token = strtok(NULL, " ");
+				i++;
+    		}
+    		info->ignore_hosts[i] = NULL;
+    		free(hosts);
+    		continue;
+    	}
+	}
+
+	fclose(config);
+	return info;
+}
+
 cJSON * read_json(char * filename) {
     FILE * fp = fopen(filename, "r");
     if (!fp) {

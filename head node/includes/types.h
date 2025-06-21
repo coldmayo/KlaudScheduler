@@ -37,4 +37,12 @@ typedef struct {
     int cores[MAX_CORES];
 } ResourceInfo;
 
+typedef struct {
+	char * priority_type;
+	bool lottery;
+	bool aging;
+	char ** ignore_hosts;
+	char * get_nodes_strat;
+} ConfigInfo;
+
 #endif // types_h_INCLUDED
