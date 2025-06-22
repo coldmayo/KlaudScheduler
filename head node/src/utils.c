@@ -20,7 +20,7 @@ char * read_file(char * file_name) {
 }
 
 ConfigInfo * get_config_info() {
-	FILE * config = fopen("klaudrc", "r");
+	FILE * config = fopen("~/.klaudrc", "r");
 
 	char line[200];
 
@@ -86,6 +86,44 @@ ConfigInfo * get_config_info() {
 
 	fclose(config);
 	return info;
+}
+
+bool allowed_ip(const char * ip) {
+	ConfigInfo * config = get_config_info();
+	int i = 0;
+	while(config->ignore_hosts[i] != NULL) {
+		if (strcmp(ip, config->ignore_hosts[i]) == 0) {
+			return false;
+		}
+		i++;
+	}
+	return true;
+}
+
+char ** get_ip_hosts() {
+    char ** nodes = calloc(101, sizeof(char *));
+	FILE * hosts = fopen("/etc/hosts", "r");
+	char line[200];
+
+	int i = 0;
+	while(fgets(line, sizeof(line), hosts)) {
+		if (line[0] == '#' || line[0] == '\n') continue;
+
+		char * line_cpy = strdup(line);
+		char * line_ip = strtok(line_cpy, " \t\n");
+
+		if (allowed_ip(line_ip)) {
+			nodes[i] = strdup(line_ip);
+		}
+		
+
+		free(line_cpy);
+		i++;
+	}
+
+	fclose(hosts);
+	nodes[i] = NULL;
+	return nodes;
 }
 
 cJSON * read_json(char * filename) {

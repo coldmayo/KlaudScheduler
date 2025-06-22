@@ -11,26 +11,33 @@ DISPATCH_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/nodes_list.h $(INCLUDE)/ty
 MAIN_SRCS := $(SRC)/main.c $(SRC)/current_jobs.c $(SRC)/cJSON.c $(SRC)/utils.c $(SRC)/klaud_files.c
 MAIN_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/types.h $(INCLUDE)/utils.h $(INCLUDE)/klaud_files.h
 
-all: gen_nodes_list dispatch main
+all: get-nodes dispatch klaudrun
 
-gen_nodes_list: $(GEN_NODES_SRCS) $(GEN_NODES_HDRS)
-	$(CC) $(CFLAGS) -o gen_nodes_list $(GEN_NODES_SRCS)
+get-nodes: $(GEN_NODES_SRCS) $(GEN_NODES_HDRS)
+	$(CC) $(CFLAGS) -o get-nodes $(GEN_NODES_SRCS)
+	@cp get-nodes ~/.local/bin/get-nodes
 
 dispatch: $(DISPATCH_SRCS) $(DISPATCH_HDRS)
 	$(CC) $(CFLAGS) -o dispatch $(DISPATCH_SRCS)
+	@cp dispatch ~/.local/bin/dispatch
 
-main: $(MAIN_SRCS) $(MAIN_HDRS)
-	$(CC) $(CFLAGS) -o main $(MAIN_SRCS)
-
+klaudrun: $(MAIN_SRCS) $(MAIN_HDRS)
+	$(CC) $(CFLAGS) -o klaudrun $(MAIN_SRCS)
+	@cp klaudrun ~/.local/bin/klaudrun
+global:
+	@cp get-nodes ~/.local/bin/get-nodes
+	@cp dispatch ~/.local/bin/dispatch
+	@cp klaudrun ~/.local/bin/klaudrun
+	
 run_dispatch:
 	./dispatch
 
 run_nodes:
-	./gen_nodes_list
+	./get-nodes
 
 debug:
 	$(CC) -g -o dispatch $(DISPATCH_SRCS)
 	gdb ./dispatch
 
 clean:
-	rm -f gen_nodes_list dispatch main
+	rm -f get-nodes dispatch klaudrun

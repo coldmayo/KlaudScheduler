@@ -54,7 +54,6 @@ NODEINFO * node_info(char * addr) {
             if (total > 0.0) {
                 int used = total - idle - iowait;
                 info->coreUse[cnt] = (used * 100.0) / total;
-                //printf("Core %d: %.2f usage\n", cnt, info->coreUse[cnt]);
             } else {
                 info->coreUse[cnt] = 0.0;
             }

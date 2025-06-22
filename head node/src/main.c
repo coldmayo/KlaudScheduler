@@ -6,7 +6,7 @@
 #include "../includes/types.h"
 #include "../includes/klaud_files.h"
 
-const char *list[4] = {"--num_cores", "--command", "--outfile", "--file"};
+const char *list[5] = {"--num_cores", "--command", "--outfile", "--file", "--help"};
 
 int check_args(const char *arg) {
     char temp[100];
@@ -18,7 +18,7 @@ int check_args(const char *arg) {
         return -1;
     }
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         if (strcmp(token, list[i]) == 0) {
             return i;
         }
@@ -84,6 +84,8 @@ int get_info(int argc, char *argv[], E_Job *job) {
 				free(file_job);
 				return 0;
 			}
+        } else if (index == 4) {
+			return 1;
         } else {
             printf("Unknown argument: %s\n", argv[i]);
             return -1;
@@ -95,7 +97,9 @@ int get_info(int argc, char *argv[], E_Job *job) {
 int main(int argc, char *argv[]) {
     if (argc == 1) {
 wrong:
-        printf("Usage: ./main --num_cores=<num> --command=\"<command>\" --outfile=\"<output file>\"\n");
+    	printf("Example Usage:\n");
+        printf("1. klaudrun --num_cores=<num> --command=\"<command>\" --outfile=\"<output file>\"\n");
+        printf("2. klaudrun --file=\"<batch file>\"\n");
         return EXIT_FAILURE;
     }
     
@@ -105,6 +109,20 @@ wrong:
 		goto wrong;
     } else if (ret == -2) {
 		return EXIT_FAILURE;
+    } else if (ret == 1) {
+		printf("The klaudrun command is used for submitting jobs to the queue\n"
+		"Synopsis\n"
+		"\tklaudrun [--num_cores] [--command] [--outfile] [--help] [--file]\n"
+		"Description\n"
+		"\t--num_cores=cores\n\t\tSet the amount of cores to run the program on\n"
+		"\t\tExample: --num_cores=4\n"
+		"\t--command=command\n\t\tSpecifiy the program to be run\n"
+		"\t\tExample: --command=\"./blingus\"\n"
+		"\t--outfile=file\n\t\tSet the name of the file that records job output\n"
+		"\t\tExample: --outfile=\"pingus.out\"\n"
+		"\t--file=file\n\t\tProvide a klaud batch file with all job info\n"
+		"\t\tExample: --file=\"pingus.klaud\"");
+		return 0;
     }
 
     // Some error handling
