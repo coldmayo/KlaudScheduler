@@ -40,7 +40,15 @@ char * hostlist(CPUout * c, int id) {
 
 // for now, just doing jobs in submission order (First Come first Serve)
 cJSON * find_job() {
-    cJSON * jobs_array = read_json("jobs.json");
+
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char file_path[200];
+    //printf("%s\n", file_path);
+    sprintf(file_path, "%s/jobs.json", config->dir);
+    //printf("%s\n", file_path);
+    cJSON * jobs_array = read_json(file_path);
 
     int biggest = 0;
     cJSON * biggest_job = NULL;
@@ -114,7 +122,10 @@ void * execute_job(void * args) {
     printf("Starting Execution\n");
     fflush(stdout);
     char cmd[700];
-    char rankfile_name[40];
+    char rankfile_name[200];
+    
+    ConfigInfo * config;
+    config = get_config_info();
 
     cJSON * job_copy = cJSON_Duplicate(input->job, 1);
     free(input);
@@ -143,15 +154,17 @@ void * execute_job(void * args) {
     hosts = hostlist(c, atoi(id->valuestring));
 	printf("Hosts: %s\n", hosts);
 	fflush(stdout);
-    sprintf(rankfile_name, "%s_rankfile.txt", id->valuestring);
+    sprintf(rankfile_name, "%s/%s_rankfile.txt", config->dir, id->valuestring);
 
-	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt %s 2>&1 | tee %s", hosts, id->valuestring, run->valuestring, outfile);
-	printf("%s\n", cmd);
-	fflush(stdout);
+	//snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt ./%s 2>&1 | tee %s", hosts, id->valuestring, run->valuestring, outfile);
+	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > %s", hosts, rankfile_name, run->valuestring, outfile);
+	//printf("%s\n", cmd);
 	
     // run job
     
-    system(cmd);
+    if (system(cmd) != 0) {
+        printf("Run failed!\n");
+    }
     printf("Finished!\n");
     time(&end);
     pthread_mutex_lock(&lock);
@@ -182,8 +195,14 @@ void cpu_avail(int cpu_num, CPUout * c) {
         c->free = false;
         return;
     }
-
-    cJSON * node_array = read_json("nodes.json");
+    char file_path[200];
+    
+    ConfigInfo * config;
+    config = get_config_info();
+    
+    sprintf(file_path, "%s/nodes.json", config->dir);
+    
+    cJSON * node_array = read_json(file_path);
 
     int cpu_av = 0;
     cJSON * node = NULL;
@@ -246,20 +265,20 @@ void * check_time(void * args) {
     	    double time_diff = difftime(check, start);
     	    if (time_diff >= 10.0) {
         	//printf("It has been 5 sec\n");
-        	updateNodeHealth();
-        	start = 0;
-        	check = 0;
-        	time(&start);
-    	    }
+        		updateNodeHealth();
+        		start = 0;
+        		check = 0;
+        		time(&start);
+    		}
 	}
 }
 
 // for now, only do CPU only jobs
 int main() {
-    int res, other_res;
+    int other_res;
     int i = 0;
     time_t start;
-
+    set_all_Free();
     pthread_t stat_thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);

@@ -54,7 +54,6 @@ NODEINFO * node_info(char * addr) {
             if (total > 0.0) {
                 int used = total - idle - iowait;
                 info->coreUse[cnt] = (used * 100.0) / total;
-                //printf("Core %d: %.2f usage\n", cnt, info->coreUse[cnt]);
             } else {
                 info->coreUse[cnt] = 0.0;
             }
@@ -93,7 +92,11 @@ NODEINFO * node_info(char * addr) {
 }
 
 void updateNodeHealth() {
-    FILE * fp = fopen("nodes.json", "r");
+    
+    ConfigInfo * config = get_config_info();
+    char file_path[200];
+    sprintf(file_path, "%s/nodes.json", config->dir);
+    FILE * fp = fopen(file_path, "r");
     fseek(fp, 0, SEEK_END);
     long file_size = ftell(fp);
     rewind(fp);
@@ -112,8 +115,10 @@ void updateNodeHealth() {
     struct tm *local_time;
     current_time = time(&current_time);
     local_time = localtime(&current_time);
-	
-    FILE * nodeHFile = fopen("node_status.txt", "a");
+    
+    char file_path2[200];
+    sprintf(file_path2, "%s/node_status.txt", config->dir);
+    FILE * nodeHFile = fopen(file_path2, "a");
     fprintf(nodeHFile, "\n===== Node(s) Health update: %s =====\n", asctime(local_time));
 
     cJSON * node_array = cJSON_Parse(buffer);

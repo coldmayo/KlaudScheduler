@@ -2,7 +2,7 @@
 		"hostname":	"192.168.1.101",
 		"cpus":	{
 			"cpu0":	{
-				"avail":	"OCCUPIED",
+				"avail":	"FREE",
 				"core #":	"0"
 			},
 			"cpu1":	{
@@ -24,7 +24,7 @@
 		"hostname":	"192.168.1.102",
 		"cpus":	{
 			"cpu0":	{
-				"avail":	"OCCUPIED",
+				"avail":	"FREE",
 				"core #":	"0"
 			},
 			"cpu1":	{

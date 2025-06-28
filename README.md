@@ -19,8 +19,17 @@ There will be 3 executables made when running the Makefile.
 		- Use REAL ip addressess and not aliases
 2. ```dispatch```: Should be running all the time, will continuosly check if a new job is submitted. If it is it will put it in the queue and execute when ready (using mpirun)
 3. ```main```: This is ran to submit a job into the queue
-	- Usage: ```./main --num_cores=<num> --command="<cmd>"```
+	- Arguments:
+		- ```--num_cores```: Amount of cores you want to run the program with
+		- ```--command```: Command used to actually run the executable
+		- ```--output```: Outfile path
 	- Example: ```./main --num_cores=6 --command="./hello_mpi"```
+4. ```ktrack```: Display previous/current jobs
+	- Arguments:
+		- ```--ID```: Specify the job id
+		- ```--num_cores```: Specify the number of cores
+		- ```--num_gpus```: Number of GPUs
+		- ```--status```: Status (QUEUED, DONE, RUNNING)
 
 Just a note, I have done minimal testing...
 
