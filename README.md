@@ -24,6 +24,12 @@ There will be 3 executables made when running the Makefile.
 		- ```--command```: Command used to actually run the executable
 		- ```--output```: Outfile path
 	- Example: ```./main --num_cores=6 --command="./hello_mpi"```
+4. ```ktrack```: Display previous/current jobs
+	- Arguments:
+		- ```--ID```: Specify the job id
+		- ```--num_cores```: Specify the number of cores
+		- ```--num_gpus```: Number of GPUs
+		- ```--status```: Status (QUEUED, DONE, RUNNING)
 
 Just a note, I have done minimal testing...
 

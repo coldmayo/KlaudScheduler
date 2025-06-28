@@ -121,7 +121,7 @@ wrong:
 		"\t--outfile=file\n\t\tSet the name of the file that records job output\n"
 		"\t\tExample: --outfile=\"pingus.out\"\n"
 		"\t--file=file\n\t\tProvide a klaud batch file with all job info\n"
-		"\t\tExample: --file=\"pingus.klaud\"");
+		"\t\tExample: --file=\"pingus.klaud\"\n");
 		return 0;
     }
 
@@ -134,7 +134,8 @@ wrong:
     
     printf("Cores: %d\n", job.cores);
     printf("Command: %s\n", job.command);
- 	int id = gen_id(); 
+    int id = gen_id();
+    printf("Job ID: %d\n", id);
     save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED");
 
     free(job.command);

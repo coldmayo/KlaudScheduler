@@ -34,11 +34,12 @@ E_Job * read_klaud_file(char * file_name) {
 	while (line) {
 		sscanf(line, "#KLAUD --outfile=\"%[^\"]", job_info->outfile);
 		sscanf(line, "#KLAUD --num_cores=%d", &job_info->cores);
+		//sscanf(line, "krun %s", &job_info->command);
 		line = strtok(NULL, "\n");
 	}
 
 	//printf("%s %d\n", job_info->outfile, job_info->cores);
-	sprintf(job_info->command, "chmod +x %s && ./%s", file_name, file_name);
+	sprintf(job_info->command, "%s", file_name);
 	//printf("%s %s %d\n", job_info->outfile, job_info->command, job_info->cores);
 	return job_info;
 }

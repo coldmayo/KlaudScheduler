@@ -11,11 +11,49 @@
 
 #define PORT 5000
 
+void set_all_Free() {
+
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char file_name[200];
+    sprintf(file_name, "%s/nodes.json", config->dir);
+    //printf("File name%s\n", file_name);
+    cJSON * node_array = read_json(file_name);
+    
+    cJSON * node = NULL;
+    cJSON_ArrayForEach(node, node_array) {
+        cJSON * cpu_info = NULL;
+        cJSON * cpus = cJSON_GetObjectItem(node, "cpus");
+        cJSON_ArrayForEach(cpu_info, cpus) {
+            cJSON_ReplaceItemInObject(cpu_info, "avail", cJSON_CreateString("FREE"));
+        }
+    }
+    
+    FILE * fp = fopen(file_name, "w");
+    if (fp) {
+        char *json_string = cJSON_Print(node_array);
+        if (json_string) {
+            fprintf(fp, "%s", json_string);
+            free(json_string);
+        }
+        fclose(fp);
+    }
+
+    cJSON_Delete(node_array);
+}
+
 // update availability of the cores for each node
 void update_status(int core, char * host) {
     if (!host) return;  // Guard against NULL host
 
-    FILE * fp = fopen("nodes.json", "r+");
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char file_name[40];
+    sprintf(file_name, "%s/nodes.json", config->dir);
+
+    FILE * fp = fopen(file_name, "r+");
     if (!fp) {
         printf("Failed to open nodes.json");
         fflush(stdout);
@@ -85,7 +123,7 @@ void update_status(int core, char * host) {
         }
     }
 
-    fp = fopen("nodes.json", "w");
+    fp = fopen(file_name, "w");
     if (fp) {
         char *json_string = cJSON_Print(node_array);
         if (json_string) {
@@ -162,16 +200,19 @@ char * from_node_ssh(const char * ip) {
     // For CPUs
 	char cmd[400];
 	char ret[100];
-	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > .stat.txt", ip);
-	system(cmd);
+	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > stat.txt", ip);
+	if (system(cmd) != 0) {
+	    printf("ssh command failed\n");
+	}
 
 	NODEINFO * info = malloc(sizeof(NODEINFO));
 	memset(info, 0, sizeof(NODEINFO));
-	char * conts = read_file(".stat.txt");
+	char * conts = read_file("stat.txt");
 
     char *ptr = conts;
     int cnt = 0;
     int ids[40];
+    //printf("finding cpus\n");
     while ((ptr = strstr(ptr, "cpu")) != NULL) {
         int core, user, nice, system, idle, iowait, irq, softirq;
         if (sscanf(ptr, "cpu%d %d %d %d %d %d %d %d", &core, &user, &nice, &system, &idle, &iowait, &irq, &softirq) == 8) {
@@ -180,10 +221,9 @@ char * from_node_ssh(const char * ip) {
         }
         ptr++;
     }
-
-    sprintf(ret, "%d:", cnt);
+    sprintf(ret, "%d:", cnt-1);
     int i;
-    for (i = 0; cnt > i; i++) {
+    for (i = 1; cnt > i; i++) {
         char str[20];
         sprintf(str, "%d,", ids[i]);
 		strcat(ret, str);
@@ -199,12 +239,17 @@ char * from_node_ssh(const char * ip) {
 
     // Do GPUs later
 
-	remove(".stat.txt");
+	remove("stat.txt");
 	return strdup(ret);
 }
 
 void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info, const char *hostname) {
-    FILE *file = fopen("rankfile.txt", "a");
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char file_name[200];
+    sprintf(file_name, "%s/rankfile.txt", config->dir);
+    FILE *file = fopen(file_name, "a");
     if (!file) {
         perror("Failed to open rankfile.txt");
         return;
@@ -241,11 +286,16 @@ cJSON * check_nodes(const char * ip, bool tcp) {
     char *cpu_str = strtok(info, "-");
     char *gpu_str = strtok(NULL, "-");
 
-    if (!cpu_str || !gpu_str) {
-        printf("Invalid format received from %s\n", ip);
+    //if (!cpu_str || !gpu_str) {
+    //    printf("Invalid format received from %s\n", ip);
+    //    return NULL;
+    //}
+    
+    if (!cpu_str) {
+        printf("Invalid format from %s\n", ip);
         return NULL;
     }
-
+    
     ResourceInfo cpu_info = parse_resource_info(cpu_str);
     ResourceInfo gpu_info = parse_resource_info(gpu_str);
 

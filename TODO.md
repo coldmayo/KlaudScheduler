@@ -22,10 +22,11 @@ Open up an issue for any features you want to see in the future!
 	- [x] Can be used to exclude aliases
 		- Come up with more uses for this
 - [x] Instead of the current nodes.json population strat, use ssh to get node info (like node_status.c)
-	- [ ] TEST this out
+	- [x] TEST this out
 	- [x] Also use klaudconfig to filter out nodes not needed :>
 - [ ] Add a way for the user to set a maximum runtime
 - [ ] Email notifications to alert when a job starts running and finishes
 	- IP Forwarding is still an issue, so we will see when this can get done
 - [x] Figure out how to make ./main an actual global command, seems like it would be convienent
 - [ ] Add a working directory field for jobs.json
+	- You can run all of the executables from anywhere (saved to HOME/.local/bin/)

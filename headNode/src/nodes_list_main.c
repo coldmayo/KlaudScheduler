@@ -9,7 +9,6 @@
 
 
 int main(int argc, char ** argv) {
-    //const char *nodes[] = {"192.168.1.101", "192.168.1.102"};
 	bool tcp = false;
     if (argc > 1) {
 		if (strcmp(argv[1], "--tcp") == 0) {
@@ -25,7 +24,12 @@ int main(int argc, char ** argv) {
     char ** nodes = get_ip_hosts();
 
     // Clear rankfile
-    FILE *rankfile = fopen("rankfile.txt", "w");
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char file_name[200];
+    sprintf(file_name, "%s/rankfile.txt", config->dir);
+    FILE *rankfile = fopen(file_name, "w");
     if (rankfile) {
         fclose(rankfile);
     } else {
@@ -39,8 +43,8 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    for (int i = 0; strcmp(nodes[i], "\0") != 0; i++) {
-		cJSON * node_info;
+    for (int i = 0; nodes[i] != NULL; i++) {
+	cJSON * node_info;
         node_info = check_nodes(nodes[i], tcp);
         if (node_info) {
             cJSON_AddItemToArray(jobs_array, node_info);
@@ -48,7 +52,10 @@ int main(int argc, char ** argv) {
     }
 
     // Save JSON to file
-    FILE *json_file = fopen("nodes.json", "w");
+    //printf("Saving to JSON file\n");
+    file_name[0] = '\0';
+    sprintf(file_name, "%s/nodes.json", config->dir);
+    FILE *json_file = fopen(file_name, "w");
     if (json_file) {
         char *json_string = cJSON_Print(jobs_array);
         if (json_string) {

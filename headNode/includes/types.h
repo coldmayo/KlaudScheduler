@@ -43,6 +43,7 @@ typedef struct {
 	bool aging;
 	char ** ignore_hosts;
 	char * get_nodes_strat;
+	char * dir;
 } ConfigInfo;
 
 #endif // types_h_INCLUDED

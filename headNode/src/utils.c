@@ -20,18 +20,33 @@ char * read_file(char * file_name) {
 }
 
 ConfigInfo * get_config_info() {
-	FILE * config = fopen("~/.klaudrc", "r");
+        char path[300];
+        char * boolstr;
+        snprintf(path, sizeof(path), "%s/.klaudrc", getenv("HOME"));
+	FILE * config = fopen(path, "r");
+	bool defaults = false;
+        if (!config) {
+            //printf("could not open klaudrc, setting everything to its defaults...\n");
+            defaults = true;
+        }
 
-	char line[200];
+	char line[600];
 
 	ConfigInfo * info = malloc(sizeof(ConfigInfo));
 
 	// Setting defaults just in case
-	info->priority_type = strdup("SJF");
+	info->priority_type = strdup("FIFO");
 	info->lottery = false;
 	info->aging = true;
 	info->ignore_hosts = malloc(100 * sizeof(char *));
+	info->ignore_hosts[0] = strdup("127.0.0.1");
+	info->ignore_hosts[1] = strdup("::1");
 	info->get_nodes_strat = strdup("SSH");
+	info->dir = strdup("/home/master/shared/KlaudScheduler/'head node'");
+	
+	if (defaults) {
+	    return info;
+	}
 
 	while (fgets(line, sizeof(line), config)) {
 		if (line[0] == '#' || line[0] == '\n') {
@@ -39,16 +54,11 @@ ConfigInfo * get_config_info() {
 		}
 
     	line[strcspn(line, "\n")] = '\0';
+    	
+    	//printf("%s\n", line);
 
 		// Check for these in the config file:
-    	if (sscanf(line, "set-priority %ms", &info->priority_type) == 1) {
-			continue;
-    	}
-    	if (sscanf(line, "set-nodes-strat %ms", &info->get_nodes_strat) == 1) {
-			continue;
-    	}
-
-    	char * boolstr;
+	
     		
     	if (sscanf(line, "set-priority-lottery %ms", &boolstr) == 1) {
 			if (strcmp(boolstr, "true") == 0) {
@@ -64,15 +74,29 @@ ConfigInfo * get_config_info() {
 				info->aging = true;
     		} else if (strcmp(boolstr, "false") == 0) {
 				info->aging = false;
+					
     		}
     		continue;
 		}
-    	free(boolstr);
+    	
+	
+    	if (sscanf(line, "set-priority %ms", &info->priority_type) == 1) {
+			continue;
+    	}
+    	if (sscanf(line, "set-nodes-strat %ms", &info->get_nodes_strat) == 1) {
+			continue;
+    	}
+    	if (sscanf(line, "set-dir %ms", &info->dir) == 1) {
+    	    continue;
+    	}
+
+    	
 
     	char * hosts;
+    	//printf("Looking\n");
     	if (sscanf(line, "ignore-host %ms", &hosts) == 1) {
 			char * token = strtok(hosts, " ");
-    		int i = 0;
+    		int i = 2;
     		while (token != NULL) {
 				info->ignore_hosts[i] = strdup(token);
 				token = strtok(NULL, " ");
@@ -83,7 +107,7 @@ ConfigInfo * get_config_info() {
     		continue;
     	}
 	}
-
+    free(boolstr);
 	fclose(config);
 	return info;
 }
@@ -101,9 +125,15 @@ bool allowed_ip(const char * ip) {
 }
 
 char ** get_ip_hosts() {
+    //printf("Starting\n");
     char ** nodes = calloc(101, sizeof(char *));
 	FILE * hosts = fopen("/etc/hosts", "r");
-	char line[200];
+	if (!hosts) {
+	    printf("Failed to open /etc/hosts");
+	    return NULL;
+	}
+	
+	char line[300];
 
 	int i = 0;
 	while(fgets(line, sizeof(line), hosts)) {
@@ -111,14 +141,16 @@ char ** get_ip_hosts() {
 
 		char * line_cpy = strdup(line);
 		char * line_ip = strtok(line_cpy, " \t\n");
+		
 
-		if (allowed_ip(line_ip)) {
-			nodes[i] = strdup(line_ip);
+		if (line_ip && allowed_ip(line_ip)) {
+		        //printf("%s\n", line_ip);
+			nodes[i++] = strdup(line_ip);
 		}
 		
 
 		free(line_cpy);
-		i++;
+		
 	}
 
 	fclose(hosts);
@@ -184,8 +216,12 @@ char * ip_alias(char * ip) {
 }
 
 void gen_rankfile(int id, CPUout * c) {
+
+        ConfigInfo * config;
+        config = get_config_info();
+
         char file_name[40];
-        sprintf(file_name, "%d_rankfile.txt", id);
+        sprintf(file_name, "%s/%d_rankfile.txt", config->dir, id);
         FILE *file = fopen(file_name, "w+");
         
         for (int i = 0; c->hosts[i] != NULL; i++) {
@@ -196,8 +232,11 @@ void gen_rankfile(int id, CPUout * c) {
 }
 
 int cpu_ranks(char * hostname, int id) {
+    ConfigInfo * config;
+    config = get_config_info();
+
     char file_name[40];
-    sprintf(file_name, "%d_rankfile.txt", id);
+    sprintf(file_name, "%s/%d_rankfile.txt", config->dir, id);
     FILE *file = fopen(file_name, "r");
     if (!file) return 0;
 
