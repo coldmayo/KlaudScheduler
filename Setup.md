@@ -37,12 +37,33 @@ On the master node simply run the makefile (in the ```head node/``` directory):
 $ make
 ```
 
+## Make .klaudrc file
+Make the config file and put it into your home folder i.e. ```~/.klaudrc``` of this form:
+
+```
+# Set priority system
+# Options: First In First Out (FIFO), Fair Share (FS) [No way to do this now, do later]
+# Shortest Job First (SJF), Best Fit (BF)
+# At the moment we only support FIFO and SJF
+
+set-priority FIFO
+set-priority-lottery false
+set-priority-aging true
+
+# Set the ips to ignore (ip addresses not aliases)
+# ignore-host 192.168.100.112
+
+# For populating nodes.json, specify if you would prefer to use TCP or SHH
+set-nodes-strat SSH
+```
+
 ## Fill in nodes.json
 
-On the compute nodes run ```gen_nodes_list.sh``` and then on the master node run ```gen_nodes_list```
+If using TCP, On the compute nodes run ```gen_nodes_list.sh``` and then on the master node run ```get-nodes```
+If using SSH, just run the ```get-nodes``` executables on the head node
 You should now see the ```nodes.json``` has at least 1 json entry
 
 ## Start up the scheduler
 
-- Run ```./dispatch``` to start the job distributer
-- Run ```./main --num_cores==<num> --command="cmd"``` to submit some jobs to ```jobs.json```
+- Run ```dispatch``` to start the job distributer
+- Run ```klaudrun --num_cores==<num> --command="cmd"``` to submit some jobs to ```jobs.json```

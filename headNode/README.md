@@ -10,5 +10,6 @@ Logistics:
 - ```node_status.c``` monitors the core, total CPU, and RAM usage for each node
 - ```nodes_list.c``` and ```nodes_list_main.c``` basically forms the ```nodes.json``` file which contains information about each node (# of cores, ip address, core availability, etc)
 - ```node_status.txt``` is where CPU and RAM data is updated every 5 seconds
+- ```ktrack.c``` shows information on jobs previously ran or in the queue
 
 Take a look at the Makefile to see how it all fits together!
