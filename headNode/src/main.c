@@ -5,6 +5,7 @@
 #include "../includes/current_jobs.h"
 #include "../includes/types.h"
 #include "../includes/klaud_files.h"
+#include "../includes/users.h"
 
 const char *list[5] = {"--num_cores", "--command", "--outfile", "--file", "--help"};
 

@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
 #include "../includes/types.h"
 
 // Literally a file of random smaller functions that I think can be helpful in multiple other files
@@ -42,7 +45,9 @@ ConfigInfo * get_config_info() {
 	info->ignore_hosts[0] = strdup("127.0.0.1");
 	info->ignore_hosts[1] = strdup("::1");
 	info->get_nodes_strat = strdup("SSH");
-	info->dir = strdup("/home/master/shared/KlaudScheduler/'head node'");
+	info->dir = strdup("/home/master/shared/KlaudScheduler/headNode");
+	info->groups = malloc(100 * sizeof(GROUP_INFO));
+	info->groups[0] = NULL;
 	
 	if (defaults) {
 	    return info;
@@ -110,6 +115,57 @@ ConfigInfo * get_config_info() {
     free(boolstr);
 	fclose(config);
 	return info;
+}
+
+GROUP_INFO * get_group() {
+    
+    ConfigInfo * config;
+    config = get_config_info();
+
+    char * username = getlogin();
+    
+	struct passwd *pw;
+	int ngroups = 0;
+    gid_t *groups;
+    
+    if ((pw = getpwnam(username)) == NULL) {
+        printf("Could not get username\n");
+    }
+
+    getgrouplist(username, pw->pw_gid, NULL, &ngroups);
+    groups = malloc(ngroups * sizeof(gid_t));
+
+    if (getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
+        printf("Cannot find username\n");
+        free(groups);
+    }
+
+	// Search through groups that the user could be apart of
+
+	if (config->groups[0] != NULL) {
+		for (int i = 0; i < ngroups; i++) {
+        	struct group *gr = getgrgid(groups[i]);
+        	if (gr) {
+            	for (int j = 0; config->groups[j] != NULL; j++) {
+					if (strcmp(gr->gr_name, config->groups[j]->group_name) == 0) {
+						return config->groups[j];
+					}
+            	}
+        	}
+    	}
+	} else {
+		config->groups[0]->group_name = strdup("user");
+		config->groups[0]->prior_num = 0;
+	}
+
+	GROUP_INFO *default_group = malloc(sizeof(GROUP_INFO));
+	
+	default_group->group_name = strdup("user");
+    default_group->prior_num = 0;
+
+    free(groups);
+    return default_group;
+
 }
 
 bool allowed_ip(const char * ip) {

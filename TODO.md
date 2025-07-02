@@ -25,11 +25,13 @@ Open up an issue for any features you want to see in the future!
 
 # Not Done
 
-- [ ] Figure out how this would work in a situation with muliple users
-	- [ ] When this does happen, implement Fair Share for priority system
+- [x] Figure out how this would work in a situation with muliple users
+	- [x] Add user term in jobs.json
+	- [x] When this does happen, implement Fair Share for priority system
+	- [ ] TEST THIS
 - [ ] Add a way for the user to set a maximum runtime
 - [ ] Add a working directory field for jobs.json
-	- You can run all of the executables from anywhere (saved to HOME/.local/bin/)
+	- [x] You can run all of the executables from anywhere (saved to HOME/.local/bin/)
 - [ ] Add a command where the user can check the resources used in the cluster? Similar to sinfo in slurm
 - [ ] For the ktrack command add a way to add comma delimited args into 1 filter
 	- i.e. --ID=1000,1001

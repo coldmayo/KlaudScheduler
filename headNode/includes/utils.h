@@ -10,5 +10,6 @@ int cpu_ranks(char * hostname, int id);
 cJSON * read_json(char * filename);
 ConfigInfo * get_config_info(void);
 char ** get_ip_hosts();
+GROUP_INFO * get_group();
 
 #endif // utils_h_INCLUDED

@@ -38,12 +38,18 @@ typedef struct {
 } ResourceInfo;
 
 typedef struct {
+	char * group_name;
+	int prior_num;
+} GROUP_INFO;
+
+typedef struct {
 	char * priority_type;
 	bool lottery;
 	bool aging;
 	char ** ignore_hosts;
 	char * get_nodes_strat;
 	char * dir;
+	GROUP_INFO ** groups;
 } ConfigInfo;
 
 #endif // types_h_INCLUDED

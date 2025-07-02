@@ -4,9 +4,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
+#include <math.h>
 #include "cJSON.h"
 #include "../includes/utils.h"
 #include "../includes/types.h"
+#include "../includes/users.h"
 
 // Possible job status: RUNNING, QUEUED, DONE
 
@@ -16,7 +21,8 @@ double get_priority(int time, int cpus, int id) {
     config = get_config_info();
     int pos = id - 1000;
     int ticket = rand() % 20;
-	double weights[4] = {0.1, -1.0, -1.0, 1.0};
+	double weights[5] = {0.1, -1.0, -1.0, 1.0, 2.0};
+	// weights[5] controls how aggressively usage penalizes priority
 
     if (!config->lottery) weights[3] = 0.0;
     if (!config->aging)   weights[0] = 0.0;
@@ -28,6 +34,14 @@ double get_priority(int time, int cpus, int id) {
 		prior = (time*weights[0]) + (cpus*weights[1]) + (ticket*weights[3]);
 	} else if (strcmp(config->priority_type, "FIFO") == 0) {
     	prior = (time*weights[0]) + (pos*weights[2]) + (ticket*weights[3]);
+	} else if (strcmp(config->priority_type, "FS_USER") == 0) {
+    	double num = (time*weights[0]) + (cpus*weights[1]) + (pos*weights[2]) + (ticket*weights[3]);
+    	double cput = get_CPU_time(getlogin());
+		prior = (num) / pow((cput + 1), (weights[5]));
+	} else if (strcmp(config->priority_type, "FS_GROUP") == 0) {
+		double num = (time*weights[0]) + (cpus*weights[1]) + (pos*weights[2]) + (ticket*weights[3]);
+    	double cput = get_group_cpu_time(get_group()->group_name);
+		prior = (num) / pow((cput + 1), (weights[5]));
 	} else {
     	printf("Does not understand selected proirity system, assuming FIFO\n");
         prior = (time*weights[0]) + (pos*weights[2]) + (ticket*weights[3]);
@@ -168,6 +182,8 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
         jobs_array = cJSON_CreateArray();
     }
 
+	char * username = getlogin();
+
     cJSON *job = cJSON_CreateObject();
     cJSON_AddStringToObject(job, "job_id", cJSON_Print(cJSON_CreateNumber(id)));
     cJSON_AddStringToObject(job, "command", comm);
@@ -181,6 +197,13 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
     cJSON_AddNumberToObject(job, "time", 0);
     cJSON_AddStringToObject(job, "output", out);
     cJSON_AddStringToObject(job, "status", stat);
+    cJSON_AddStringToObject(job, "user", username);
+    GROUP_INFO * g = get_group();
+    cJSON_AddStringToObject(job, "group", g->group_name);
+    
+    if (!is_user_saved(username)) {
+		save_user(username, g->group_name);
+    }
 
     cJSON_AddItemToArray(jobs_array, job);
 

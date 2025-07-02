@@ -12,6 +12,7 @@
 #include "../includes/types.h"
 #include "../includes/nodes_list.h"
 #include "../includes/node_status.h"
+#include "../includes/users.h"
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -102,7 +103,11 @@ void clean_up(cJSON * job, CPUout * c, double time) {
     printf("change job %s status to DONE\n", id->valuestring);
     fflush(stdout);
     chg_status(atoi(id->valuestring));
+    
     update_time(time);
+    update_CPUt(getlogin(), time);
+    update_group_times(get_group()->group_name, time);
+    
     for (int i = 0; c->hosts[i] != NULL && i < 20; i++) {
         if (c->cpu_cores[i] == 0) continue;
         printf("Change core %d status from host %s\n", c->cpu_cores[i], c->hosts[i]);
@@ -279,6 +284,7 @@ int main() {
     int i = 0;
     time_t start;
     set_all_Free();
+    populate_groups();
     pthread_t stat_thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
