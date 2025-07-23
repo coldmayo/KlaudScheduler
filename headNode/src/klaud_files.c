@@ -17,6 +17,7 @@ Here is a very basic example:
 #!/bin/bash
 #KLAUD --outfile="output.out"
 #KLAUD --num_cores=3
+#KLAUD --max_runtime=00:10:00
 
 ./examples/hello_mpi
 
@@ -34,6 +35,7 @@ E_Job * read_klaud_file(char * file_name) {
 	while (line) {
 		sscanf(line, "#KLAUD --outfile=\"%[^\"]", job_info->outfile);
 		sscanf(line, "#KLAUD --num_cores=%d", &job_info->cores);
+		sscanf(line, "#KLAUD --max_runtime=%s", job_info->time);
 		//sscanf(line, "krun %s", &job_info->command);
 		line = strtok(NULL, "\n");
 	}

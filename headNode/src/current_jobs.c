@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <math.h>
+#include <time.h>
 #include "cJSON.h"
 #include "../includes/utils.h"
 #include "../includes/types.h"
@@ -73,8 +74,38 @@ int gen_id(void) {
     return ind+1;
 }
 
-int chg_status(int id_) {
+void add_time_vals(int id, char * json_element) {
+    time_t rawtime;
+    time(&rawtime);
+    struct tm *info = localtime(&rawtime);
+    char time_buffer[100];
+    strftime(time_buffer, 100, "%m/%d/%Y %H:%M:%S", info);
+    
+	ConfigInfo * config;
+    config = get_config_info();
 
+    char file_path[200];
+    sprintf(file_path, "%s/jobs.json", config->dir);
+    
+	char job_id[5];
+	sprintf(job_id, "%d", id_);
+    cJSON * jobs_array = read_json(file_path);
+
+    cJSON * job = NULL;
+    cJSON_ArrayForEach(job, jobs_array) {
+		id_i = cJSON_GetObjectItem(job, "job_id");
+		if (strcmp(id_i, job_id) == 0) {
+    		if (strcmp(json_element, "end_time") == 0 || strcmp(json_element, "run_time") == 0) {
+        		cJSON_ReplaceItemInObject(job, json_element, cJSON_CreateString(time_buffer));
+    		} else {
+				printf("json_element argument not set correctly, should be either end_time or run_time");
+    		}
+    		break;
+		}
+    }
+}
+
+int chg_status(int id_) {
     ConfigInfo * config;
     config = get_config_info();
 
@@ -110,6 +141,28 @@ int chg_status(int id_) {
     cJSON_Delete(jobs_array);
 
 	return 0;
+}
+
+char * get_status(int id) {
+	ConfigInfo * config;
+    config = get_config_info();
+
+    char file_path[200];
+    sprintf(file_path, "%s/jobs.json", config->dir);
+
+    char job_id[5];
+	sprintf(job_id, "%d", id_);
+    cJSON * jobs_array = read_json(file_path);
+
+    cJSON * job = NULL;
+    cJSON_ArrayForEach(job, jobs_array) {
+		cJSON * id_ = cJSON_GetObjectItem(job, "job_id");
+		cJSON * status = cJSON_GetObjectItem(job, "status");
+		if (id_->valueint == id) {
+			return status->valuestring;
+		}
+    }
+    return NULL;
 }
 
 void update_time(double elapsed) {
@@ -167,7 +220,7 @@ int clear_queue () {
 	return 0;
 }
 
-void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, double priority, const char *out, const char *stat) {
+void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, double priority, const char *out, const char *stat, const char * max_time) {
     fflush(stdout);
     
     ConfigInfo * config;
@@ -183,7 +236,7 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
     }
 
 	char * username = getlogin();
-
+    
     cJSON *job = cJSON_CreateObject();
     cJSON_AddStringToObject(job, "job_id", cJSON_Print(cJSON_CreateNumber(id)));
     cJSON_AddStringToObject(job, "command", comm);
@@ -200,6 +253,10 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
     cJSON_AddStringToObject(job, "user", username);
     GROUP_INFO * g = get_group();
     cJSON_AddStringToObject(job, "group", g->group_name);
+    cJSON_AddStringToObject(job, "max_runtime", max_time);
+    cJSON_AddStringToObject(job, "submit_time", buffer);
+    cJSON_AddStringToObject(job, "run_time", "None");
+    cJSON_AddStringToObject(job, "end_time", "None");
     
     if (!is_user_saved(username)) {
 		save_user(username, g->group_name);

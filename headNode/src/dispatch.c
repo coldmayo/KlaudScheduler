@@ -7,6 +7,12 @@
 //#include <cjson/cJSON.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "../includes/utils.h"
 #include "../includes/current_jobs.h"
 #include "../includes/types.h"
@@ -17,6 +23,8 @@
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;
+volatile bool max_run_flag = false;   // For over_time() function
+pid_t child_pid = -1;
 
 char * hostlist(CPUout * c, int id) {
     char * hosts = malloc(70 * sizeof(char));
@@ -37,6 +45,11 @@ char * hostlist(CPUout * c, int id) {
         }
     }
     return hosts;
+}
+
+// TODO: Finish this function
+void cancel_job() {
+
 }
 
 // for now, just doing jobs in submission order (First Come first Serve)
@@ -118,10 +131,52 @@ void clean_up(cJSON * job, CPUout * c, double time) {
     fflush(stdout);
 }
 
+typedef struct {
+	char * time;
+	time_t start;
+	int id;
+} inp;
+
+void *over_time(void * args) {
+    inp * params = (inp * )args;
+    char * t_ = params->time;
+	time_t start = params->start;
+	int id = params->id;
+	time_t check;
+
+	while (max_run_flag) {
+		time(&check);
+		double time_diff = difftime(check, start);
+		TIME_INT * t = time_int(t_);
+		int tTosecs = 0;
+		tTosecs += t->sec;
+		tTosecs += t->min * 60;
+		tTosecs += t->hour * 60 * 60;
+		free(t);
+	
+		if (time_diff >= tTosecs && kill(child_pid, 0) == 0) {
+    		kill(child_pid, SIGTERM);
+			break;
+		}
+		
+		if (strcmp(get_status(id), "DONE") == 0) {
+			break;
+		}
+
+		sleep(1);
+	}
+
+	max_run_flag = false;
+	free(params->time);
+	free(params);
+	return NULL;
+}
+
 void * execute_job(void * args) {
     EXECUTE * input = (EXECUTE *) args;
     CPUout * c = input->c;
     time_t start = input->start;
+    time(&start);
     time_t end;
     char * hosts;
     printf("Starting Execution\n");
@@ -140,9 +195,15 @@ void * execute_job(void * args) {
         fflush(stdout);
         goto clean_cpu;
     }
+    
 	cJSON * run = cJSON_GetObjectItem(job_copy, "command");
 	cJSON * id = cJSON_GetObjectItem(job_copy, "job_id");
 	cJSON * outf = cJSON_GetObjectItem(job_copy, "output");
+	cJSON * time = cJSON_GetObjectItem(job_copy, "max_runtime");
+
+	pthread_mutex_lock(&lock);
+    add_time_vals(id->valueint, "run_time");
+    pthread_mutex_unlock(&lock);
 	
 	char outfile[255];
 	if (strcmp("\0", outf->valuestring) == 0) {
@@ -150,7 +211,7 @@ void * execute_job(void * args) {
 	} else {
 	    sprintf(outfile, "%s", outf->valuestring);
 	}
-	
+
 	gen_rankfile(atoi(id->valuestring), c);
 
 	// rankfile format: rank <rank_id>=<hostname> slot=<core_binding>
@@ -161,17 +222,48 @@ void * execute_job(void * args) {
 	fflush(stdout);
     sprintf(rankfile_name, "%s/%s_rankfile.txt", config->dir, id->valuestring);
 
-	//snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt ./%s 2>&1 | tee %s", hosts, id->valuestring, run->valuestring, outfile);
-	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > %s", hosts, rankfile_name, run->valuestring, outfile);
+	//snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > %s", hosts, rankfile_name, run->valuestring, outfile);
 	//printf("%s\n", cmd);
+
+	char rankfile_arg[200];
+	snprintf(rankfile_arg, sizeof(rankfile_arg), "rankfile:file=%s", rankfile_name);
 	
     // run job
+    inp * in = malloc(sizeof(inp));
+	in->time = strdup(time->valuestring);
+	in->id = id->valueint;
+
+	max_run_flag = true;
+	pthread_t time_thread;
+    pthread_create(&time_thread, NULL, over_time, in);
     
-    if (system(cmd) != 0) {
-        printf("Run failed!\n");
+    child_pid = fork();
+    if (child_pid == 0) {
+		int fd = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (fd < 0) {
+    		printf("open failed\n");
+    		return NULL;
+		}
+
+        dup2(fd, STDOUT_FILENO);
+		close(fd);
+
+		execlp("mpirun", "mpirun", "--host", hosts, "--map-by", rankfile_arg, run->valuestring, NULL);
+		printf("execlp failed\n");
+		exit(1);
     }
+
+    waitpid(child_pid, NULL, 0);
+    max_run_flag = false;
+    pthread_join(time_thread, NULL);
+   
     printf("Finished!\n");
     time(&end);
+    
+    pthread_mutex_lock(&lock);
+    add_time_vals(id->valueint, "end_time");
+    pthread_mutex_unlock(&lock);
+    
     pthread_mutex_lock(&lock);
     clean_up(job_copy, c, difftime(end, start));
     pthread_mutex_unlock(&lock);
@@ -262,6 +354,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
     }
 }
 
+// Check time for updating logs
 void * check_time(void * args) {
     time_t start, check;
     time(&start);
@@ -368,6 +461,7 @@ int main() {
             pthread_mutex_unlock(&lock);
             continue;
         }
+        
         pthread_mutex_unlock(&lock);
         i++;
     }

@@ -9,6 +9,12 @@
 
 // Literally a file of random smaller functions that I think can be helpful in multiple other files
 
+TIME_INT * time_int(char * time) {
+    TIME_INT * t = {0, 0, 0};
+	sscanf(time, "%d:%d:%d", &t.hour, &t.min, &t.sec);
+	return t;
+}
+
 char * read_file(char * file_name) {
 	FILE * f;
 	f = fopen(file_name, "rb");

@@ -7,7 +7,7 @@
 #include "../includes/klaud_files.h"
 #include "../includes/users.h"
 
-const char *list[5] = {"--num_cores", "--command", "--outfile", "--file", "--help"};
+const char *list[6] = {"--num_cores", "--command", "--outfile", "--file", "--help", "--max_runtime"};
 
 int check_args(const char *arg) {
     char temp[100];
@@ -19,7 +19,7 @@ int check_args(const char *arg) {
         return -1;
     }
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (strcmp(token, list[i]) == 0) {
             return i;
         }
@@ -30,6 +30,7 @@ int check_args(const char *arg) {
 int get_info(int argc, char *argv[], E_Job *job) {
     job->command = malloc(256);
     job->outfile = malloc(256);
+    job->time = malloc(256);
     char * klaud_file = malloc(256);
 	
     if (!job->command) {
@@ -87,6 +88,12 @@ int get_info(int argc, char *argv[], E_Job *job) {
 			}
         } else if (index == 4) {
 			return 1;
+        } else if (index == 5) {
+			value = strchr(argv[i], '=');
+			if (value) {
+				strncpy(job->time, value+1, 255);
+				job->time[255] = '\0';
+			}
         } else {
             printf("Unknown argument: %s\n", argv[i]);
             return -1;
@@ -99,12 +106,12 @@ int main(int argc, char *argv[]) {
     if (argc == 1) {
 wrong:
     	printf("Example Usage:\n");
-        printf("1. klaudrun --num_cores=<num> --command=\"<command>\" --outfile=\"<output file>\"\n");
+        printf("1. klaudrun --num_cores=<num> --max_runtime=\"<time>\" --command=\"<command>\" --outfile=\"<output file>\"\n");
         printf("2. klaudrun --file=\"<batch file>\"\n");
         return EXIT_FAILURE;
     }
     
-    E_Job job = {0, NULL, NULL};
+    E_Job job = {0, NULL, NULL, NULL};
     int ret = get_info(argc, argv, &job);
 	if (ret == -1) {
 		goto wrong;
@@ -122,7 +129,9 @@ wrong:
 		"\t--outfile=file\n\t\tSet the name of the file that records job output\n"
 		"\t\tExample: --outfile=\"pingus.out\"\n"
 		"\t--file=file\n\t\tProvide a klaud batch file with all job info\n"
-		"\t\tExample: --file=\"pingus.klaud\"\n");
+		"\t\tExample: --file=\"pingus.klaud\"\n"
+		"\t--max_runtime=time (hh:mm:ss format)\n\t\tMaximum runtime of the program\n"
+		"\t\tExample: --max_runtime=01:30:00\n");
 		return 0;
     }
 
@@ -131,13 +140,13 @@ wrong:
         goto wrong;
     } else if (strcmp(job.command, "\0") == 0) {
         goto wrong;
-    }
+    } else if (strcmp(job.))
     
     printf("Cores: %d\n", job.cores);
     printf("Command: %s\n", job.command);
     int id = gen_id();
     printf("Job ID: %d\n", id);
-    save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED");
+    save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED", job.time);
 
     free(job.command);
     return 0;

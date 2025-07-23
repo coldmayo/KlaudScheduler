@@ -10,3 +10,15 @@ Directory structure:
 	- \home
 		- \alice
 		- \bob
+- Probably have a group called admin that has access to all directories while each user is available only has access to theirs?
+
+```bash
+# Give the group 'editors' write access
+setfacl -m g:editors:rw alice/
+
+# Give the user 'alice' write access
+setfacl -m u:alice:rw alice/
+
+# Make sure others don’t have access
+chmod o-rwx alice/
+```

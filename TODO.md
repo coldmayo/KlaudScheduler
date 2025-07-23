@@ -30,6 +30,7 @@ Open up an issue for any features you want to see in the future!
 	- [x] When this does happen, implement Fair Share for priority system
 	- [ ] TEST THIS
 - [ ] Add a way for the user to set a maximum runtime
+	- Working on
 - [ ] Add a working directory field for jobs.json
 	- [x] You can run all of the executables from anywhere (saved to HOME/.local/bin/)
 - [ ] Add a command where the user can check the resources used in the cluster? Similar to sinfo in slurm

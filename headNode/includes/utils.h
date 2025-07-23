@@ -11,5 +11,6 @@ cJSON * read_json(char * filename);
 ConfigInfo * get_config_info(void);
 char ** get_ip_hosts();
 GROUP_INFO * get_group();
+TIME_INT * time_int(char * time);
 
 #endif // utils_h_INCLUDED

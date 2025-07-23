@@ -23,6 +23,7 @@ typedef struct {
     int cores;
     char *command;
     char * outfile;
+    char * time;
 } E_Job;
 
 typedef struct {
@@ -41,6 +42,12 @@ typedef struct {
 	char * group_name;
 	int prior_num;
 } GROUP_INFO;
+
+typedef struct {
+	int hour;
+	int min;
+	int sec;
+} TIME_INT;
 
 typedef struct {
 	char * priority_type;

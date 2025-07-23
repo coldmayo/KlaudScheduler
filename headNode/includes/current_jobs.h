@@ -7,5 +7,7 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
 int gen_id();
 int get_priority(int time, int cpus, int id);
 void update_time(double time);
+char * get_status(int id);
+void add_time_vals(int id, char * json_element);
 
 #endif // current_jobs_h_INCLUDED
