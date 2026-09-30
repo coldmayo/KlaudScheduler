@@ -35,6 +35,7 @@ global:
 	@cp dispatch ~/.local/bin/dispatch
 	@cp klaudrun ~/.local/bin/klaudrun
 	@cp ktrack ~/.local/bin/ktrack
+	@sudo cp get-nodes dispatch klaudrun ktrack /usr/local/bin/
 	
 run_dispatch:
 	./dispatch

@@ -21,6 +21,8 @@ typedef struct {
 
 typedef struct {
     int cores;
+    char ** commands;
+    int num_commands;
     char *command;
     char * outfile;
 } E_Job;

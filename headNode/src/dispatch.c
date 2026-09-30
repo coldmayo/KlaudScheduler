@@ -7,6 +7,7 @@
 //#include <cjson/cJSON.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/wait.h>
 #include "../includes/utils.h"
 #include "../includes/current_jobs.h"
 #include "../includes/types.h"
@@ -156,15 +157,13 @@ void * execute_job(void * args) {
 	fflush(stdout);
     sprintf(rankfile_name, "%s/%s_rankfile.txt", config->dir, id->valuestring);
 
-	//snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s_rankfile.txt ./%s 2>&1 | tee %s", hosts, id->valuestring, run->valuestring, outfile);
-	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > %s", hosts, rankfile_name, run->valuestring, outfile);
-	//printf("%s\n", cmd);
-	
-    // run job
-    
-    if (system(cmd) != 0) {
-        printf("Run failed!\n");
-    }
+	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > \"%s\" 2>&1", hosts, rankfile_name, run->valuestring, outfile);
+        printf("CMD: %s\n", cmd);
+
+        int rc = system(cmd);
+        if (rc == -1 || !WIFEXITED(rc) || WEXITSTATUS(rc) != 0) {
+          printf("Run failed, status=%d\n", rc);
+        }
     printf("Finished!\n");
     time(&end);
     pthread_mutex_lock(&lock);

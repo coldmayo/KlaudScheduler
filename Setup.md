@@ -55,6 +55,7 @@ set-priority-aging true
 
 # For populating nodes.json, specify if you would prefer to use TCP or SHH
 set-nodes-strat SSH
+set-dir /set/working/directory
 ```
 
 ## Fill in nodes.json

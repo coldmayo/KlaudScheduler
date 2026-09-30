@@ -59,7 +59,7 @@ int get_info(int argc, char *argv[], E_Job *job) {
             value = strchr(argv[i], '=');
             if (value) {
                 strncpy(job->outfile, value+1, 255);
-                job->command[255] = '\0';
+                job->outfile[255] = '\0';
             } else {
 				return -1;
             }
@@ -103,7 +103,7 @@ wrong:
         return EXIT_FAILURE;
     }
     
-    E_Job job = {0, NULL, NULL};
+    E_Job job = {0, NULL, 0, NULL, NULL};
     int ret = get_info(argc, argv, &job);
 	if (ret == -1) {
 		goto wrong;

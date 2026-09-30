@@ -41,8 +41,9 @@ ConfigInfo * get_config_info() {
 	info->ignore_hosts = malloc(100 * sizeof(char *));
 	info->ignore_hosts[0] = strdup("127.0.0.1");
 	info->ignore_hosts[1] = strdup("::1");
+	info->ignore_hosts[2] = NULL;
 	info->get_nodes_strat = strdup("SSH");
-	info->dir = strdup("/home/master/shared/KlaudScheduler/'head node'");
+	info->dir = strdup("/home/master/KlaudScheduler/headNode");
 	
 	if (defaults) {
 	    return info;
@@ -112,17 +113,28 @@ ConfigInfo * get_config_info() {
 	return info;
 }
 
-bool allowed_ip(const char * ip) {
-	ConfigInfo * config = get_config_info();
-	int i = 0;
-	while(config->ignore_hosts[i] != NULL) {
-		if (strcmp(ip, config->ignore_hosts[i]) == 0) {
-			return false;
-		}
-		i++;
-	}
-	return true;
+bool allowed_ip(const char *ip)
+{
+    ConfigInfo *config = get_config_info();
+
+    if (!config) {
+        return false;
+    }
+
+    if (!config->ignore_hosts) {
+        return true;
+    }
+
+    for (int i = 0; config->ignore_hosts[i] != NULL; i++) {
+        if (strcmp(ip, config->ignore_hosts[i]) == 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
+
+
 
 char ** get_ip_hosts() {
     //printf("Starting\n");
@@ -139,17 +151,32 @@ char ** get_ip_hosts() {
 	while(fgets(line, sizeof(line), hosts)) {
 		if (line[0] == '#' || line[0] == '\n') continue;
 
-		char * line_cpy = strdup(line);
-		char * line_ip = strtok(line_cpy, " \t\n");
-		
+		char *line_cpy = strdup(line);
+if (!line_cpy) {
+    fprintf(stderr, "strdup failed\n");
+    continue;
+}
 
-		if (line_ip && allowed_ip(line_ip)) {
-		        //printf("%s\n", line_ip);
-			nodes[i++] = strdup(line_ip);
-		}
-		
+char *line_ip = strtok(line_cpy, " \t\n");
 
-		free(line_cpy);
+if (line_ip) {
+    printf("Checking IP: %s\n", line_ip);
+    fflush(stdout);
+
+    if (allowed_ip(line_ip)) {
+    printf("allowed: %s, i=%d\n", line_ip, i);
+    fflush(stdout);
+
+    nodes[i] = strdup(line_ip);
+
+    printf("strdup done: %p\n", (void *)nodes[i]);
+    fflush(stdout);
+
+    i++;
+}
+}
+
+free(line_cpy);
 		
 	}
 

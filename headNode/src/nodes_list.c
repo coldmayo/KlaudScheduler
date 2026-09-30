@@ -10,6 +10,7 @@
 #include "../includes/utils.h"
 
 #define PORT 5000
+#define BUFFER_SIZE 1000
 
 void set_all_Free() {
 
@@ -199,25 +200,40 @@ char * from_node_ssh(const char * ip) {
 
     // For CPUs
 	char cmd[400];
-	char ret[100];
+	char * ret = malloc(BUFFER_SIZE);
+	memset(ret,0, BUFFER_SIZE);
 	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > stat.txt", ip);
 	if (system(cmd) != 0) {
 	    printf("ssh command failed\n");
+	    free(ret);
+            remove("stat.txt");
+            return NULL;
 	}
 
 	NODEINFO * info = malloc(sizeof(NODEINFO));
 	memset(info, 0, sizeof(NODEINFO));
 	char * conts = read_file("stat.txt");
+	if (!conts) {
+          fprintf(stderr, "Failed to read stat.txt\n");
+          free(ret);
+          remove("stat.txt");
+          return NULL;
+        }
+
 
     char *ptr = conts;
     int cnt = 0;
-    int ids[40];
+    int ids[100];
     //printf("finding cpus\n");
     while ((ptr = strstr(ptr, "cpu")) != NULL) {
         int core, user, nice, system, idle, iowait, irq, softirq;
         if (sscanf(ptr, "cpu%d %d %d %d %d %d %d %d", &core, &user, &nice, &system, &idle, &iowait, &irq, &softirq) == 8) {
-            ids[cnt] = core;
-            cnt++;
+            if (cnt >= 100) {
+                fprintf(stderr, "Too many CPUs detected\n");
+                break;
+            }
+
+            ids[cnt++] = core;
         }
         ptr++;
     }
@@ -240,7 +256,7 @@ char * from_node_ssh(const char * ip) {
     // Do GPUs later
 
 	remove("stat.txt");
-	return strdup(ret);
+	return ret;
 }
 
 void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info, const char *hostname) {
@@ -248,6 +264,7 @@ void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info
     config = get_config_info();
 
     char file_name[200];
+    printf("Opening %s/rankfile.txt", config->dir);
     sprintf(file_name, "%s/rankfile.txt", config->dir);
     FILE *file = fopen(file_name, "a");
     if (!file) {
@@ -275,6 +292,7 @@ cJSON * check_nodes(const char * ip, bool tcp) {
     if (tcp) {
 		info = from_node(ip);
     } else {
+                printf("SSH:\n");
 		info = from_node_ssh(ip);
     }
     
@@ -292,12 +310,16 @@ cJSON * check_nodes(const char * ip, bool tcp) {
     //}
     
     if (!cpu_str) {
-        printf("Invalid format from %s\n", ip);
+        fprintf(stderr, "Invalid resource string from %s: %s\n", ip, info);
+        free(info);
         return NULL;
     }
     
     ResourceInfo cpu_info = parse_resource_info(cpu_str);
-    ResourceInfo gpu_info = parse_resource_info(gpu_str);
+    ResourceInfo gpu_info = {0};
+    if (gpu_str) {
+        gpu_info = parse_resource_info(gpu_str);
+    }
 
     // Save to rankfile
     save_to_rankfile(&cpu_info, &gpu_info, ip);
