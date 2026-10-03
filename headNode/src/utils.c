@@ -2,9 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <dirent.h>
+#include <limits.h>
+#include <pthread.h>
 #include "../includes/types.h"
 
 // Literally a file of random smaller functions that I think can be helpful in multiple other files
+
+pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
 
 char * read_file(char * file_name) {
 	FILE * f;
@@ -21,7 +26,7 @@ char * read_file(char * file_name) {
 
 ConfigInfo * get_config_info() {
         char path[300];
-        char * boolstr;
+        char * boolstr = NULL;
         snprintf(path, sizeof(path), "%s/.klaudrc", getenv("HOME"));
 	FILE * config = fopen(path, "r");
 	bool defaults = false;
@@ -43,7 +48,12 @@ ConfigInfo * get_config_info() {
 	info->ignore_hosts[1] = strdup("::1");
 	info->ignore_hosts[2] = NULL;
 	info->get_nodes_strat = strdup("SSH");
-	info->dir = strdup("/home/master/KlaudScheduler/headNode");
+	char dir_path[300];
+        snprintf(dir_path, sizeof(dir_path), "%s/KlaudScheduler/headNode", getenv("HOME"));
+        info->dir = strdup(dir_path);
+        snprintf(dir_path, sizeof(dir_path), "/home/shared", getenv("HOME"));
+        info->data_dir = strdup(dir_path);
+        //printf("Data-dir: %s\n", info->data_dir)
 	
 	if (defaults) {
 	    return info;
@@ -108,7 +118,9 @@ ConfigInfo * get_config_info() {
     		continue;
     	}
 	}
-    free(boolstr);
+	if (boolstr) {
+	    free(boolstr);
+	}
 	fclose(config);
 	return info;
 }
@@ -186,9 +198,9 @@ free(line_cpy);
 }
 
 cJSON * read_json(char * filename) {
-    FILE * fp = fopen(filename, "r");
+    FILE * fp = fopen(filename, "a+");
     if (!fp) {
-        printf("File does not exist");
+        printf("Error opening file: %s\n", filename);
         fflush(stdout);
         return cJSON_CreateArray();
     }
@@ -247,7 +259,7 @@ void gen_rankfile(int id, CPUout * c) {
         ConfigInfo * config;
         config = get_config_info();
 
-        char file_name[40];
+        char file_name[100];
         sprintf(file_name, "%s/%d_rankfile.txt", config->dir, id);
         FILE *file = fopen(file_name, "w+");
         
@@ -284,5 +296,53 @@ int cpu_ranks(char * hostname, int id) {
     }
 
     fclose(file);
+    return count;
+}
+
+int get_dispatch_count(void) {
+    DIR *proc = opendir("/proc");
+
+    if (!proc) {
+        perror("Failed to open /proc");
+        return 0;
+    }
+
+    struct dirent *entry;
+    int count = 0;
+
+    while ((entry = readdir(proc)) != NULL) {
+        if (entry->d_type != DT_DIR)
+            continue;
+
+        char *end;
+        strtol(entry->d_name, &end, 10);
+
+        if (*end != '\0')
+            continue;
+
+        char comm_path[PATH_MAX];
+        snprintf(comm_path, sizeof(comm_path),
+                 "/proc/%s/comm", entry->d_name);
+
+        FILE *fp = fopen(comm_path, "r");
+
+        if (!fp)
+            continue;
+
+        char process_name[256];
+
+        if (fgets(process_name, sizeof(process_name), fp)) {
+            process_name[strcspn(process_name, "\n")] = '\0';
+
+            if (strcmp(process_name, "dispatch") == 0) {
+                count++;
+            }
+        }
+
+        fclose(fp);
+    }
+
+    closedir(proc);
+
     return count;
 }

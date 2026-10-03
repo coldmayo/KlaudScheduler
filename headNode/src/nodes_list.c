@@ -18,7 +18,7 @@ void set_all_Free() {
     config = get_config_info();
 
     char file_name[200];
-    sprintf(file_name, "%s/nodes.json", config->dir);
+    sprintf(file_name, "%s/nodes.json", config->data_dir);
     //printf("File name%s\n", file_name);
     cJSON * node_array = read_json(file_name);
     
@@ -52,7 +52,8 @@ void update_status(int core, char * host) {
     config = get_config_info();
 
     char file_name[40];
-    sprintf(file_name, "%s/nodes.json", config->dir);
+    pthread_mutex_lock(&file_lock);
+    sprintf(file_name, "%s/nodes.json", config->data_dir);
 
     FILE * fp = fopen(file_name, "r+");
     if (!fp) {
@@ -135,6 +136,7 @@ void update_status(int core, char * host) {
     }
 
     cJSON_Delete(node_array);
+    pthread_mutex_unlock(&file_lock);
 }
 
 // Parse the resource string into a ResourceInfo structure
@@ -202,7 +204,8 @@ char * from_node_ssh(const char * ip) {
 	char cmd[400];
 	char * ret = malloc(BUFFER_SIZE);
 	memset(ret,0, BUFFER_SIZE);
-	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > stat.txt", ip);
+	
+	sprintf(cmd, "ssh $USER@%s \"cat /proc/stat\" > stat.txt", ip);
 	if (system(cmd) != 0) {
 	    printf("ssh command failed\n");
 	    free(ret);
@@ -264,8 +267,8 @@ void save_to_rankfile(const ResourceInfo *cpu_info, const ResourceInfo *gpu_info
     config = get_config_info();
 
     char file_name[200];
-    printf("Opening %s/rankfile.txt", config->dir);
-    sprintf(file_name, "%s/rankfile.txt", config->dir);
+    printf("Opening %s/rankfile.txt", config->data_dir);
+    sprintf(file_name, "%s/rankfile.txt", config->data_dir);
     FILE *file = fopen(file_name, "a");
     if (!file) {
         perror("Failed to open rankfile.txt");

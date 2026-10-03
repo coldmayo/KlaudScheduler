@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <pthread.h>
 #include <unistd.h>
+#include <pwd.h>
 #include "cJSON.h"
 //#include <cjson/cJSON.h>
 #include <stdbool.h>
@@ -15,7 +15,6 @@
 #include "../includes/node_status.h"
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;
 
 char * hostlist(CPUout * c, int id) {
@@ -47,7 +46,7 @@ cJSON * find_job() {
 
     char file_path[200];
     //printf("%s\n", file_path);
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     //printf("%s\n", file_path);
     cJSON * jobs_array = read_json(file_path);
 
@@ -58,16 +57,21 @@ cJSON * find_job() {
     cJSON_ArrayForEach(job, jobs_array) {
         cJSON * status = cJSON_GetObjectItem(job, "status");
         cJSON * priority = cJSON_GetObjectItem(job, "priority");
+        cJSON * user = cJSON_GetObjectItem(job, "user");
+        
+        uid_t uid = getuid();
+        struct passwd *pw = getpwuid(uid);
 
         // Safe pointer checking
-        if (!status || !priority || !status->valuestring) {
+        if (!status || !priority || !status || !user) {
             printf("Skipping job - missing fields\n");
             continue;
         }
 
         //printf("Checking job: status=%s, priority=%d\n", status->valuestring, priority->valueint);
+        //printf("%s %s\n", user->valuestring, pw->pw_name);
 
-        if (strcmp(status->valuestring, "QUEUED") == 0) {
+        if (strcmp(status->valuestring, "QUEUED") == 0 && strcmp(user->valuestring, pw->pw_name) == 0) {
             double prior = priority->valuedouble;
             printf("QUEUED job found with priority %f\n", prior);
 
@@ -105,7 +109,7 @@ void clean_up(cJSON * job, CPUout * c, double time) {
     chg_status(atoi(id->valuestring));
     update_time(time);
     for (int i = 0; c->hosts[i] != NULL && i < 20; i++) {
-        if (c->cpu_cores[i] == 0) continue;
+        //if (c->cpu_cores[i] == 0) continue;
         printf("Change core %d status from host %s\n", c->cpu_cores[i], c->hosts[i]);
         fflush(stdout);
         update_status(c->cpu_cores[i], c->hosts[i]);
@@ -177,7 +181,7 @@ void * execute_job(void * args) {
 clean_cpu:
     //printf("print");
     fflush(stdout);
-    for (int i = 0; c->hosts[i] != NULL && i < c->num_hosts; i++) {
+    for (int i = 0; i < c->num_hosts; i++) {
         free(c->hosts[i]);
     }
     free(c->cpu_cores);
@@ -199,9 +203,25 @@ void cpu_avail(int cpu_num, CPUout * c) {
     ConfigInfo * config;
     config = get_config_info();
     
-    sprintf(file_path, "%s/nodes.json", config->dir);
+    sprintf(file_path, "%s/nodes.json", config->data_dir);
     
-    cJSON * node_array = read_json(file_path);
+    cJSON *root = read_json(file_path);
+
+    if (!root || !cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        free(cpus_needed);
+        c->free = false;
+        return;
+    }
+
+    cJSON *node_array = cJSON_GetObjectItem(root, "nodes");
+
+    if (!node_array || !cJSON_IsArray(node_array)) {
+        cJSON_Delete(root);
+        free(cpus_needed);
+        c->free = false;
+        return;
+    }
 
     int cpu_av = 0;
     cJSON * node = NULL;
@@ -230,7 +250,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
                         free(c->hosts[i]);
                     }
                     free(cpus_needed);
-                    cJSON_Delete(node_array);
+                    cJSON_Delete(root);
                     c->free = false;
                     return;
                 }
@@ -241,7 +261,7 @@ void cpu_avail(int cpu_num, CPUout * c) {
         if (cpu_av >= cpu_num) break;
     }
 
-    cJSON_Delete(node_array);
+    cJSON_Delete(root);
     c->num_hosts = cpu_av;
     if (cpu_av >= cpu_num) {
         c->cpu_cores = cpus_needed;
@@ -277,7 +297,9 @@ int main() {
     int other_res;
     int i = 0;
     time_t start;
-    set_all_Free();
+    if (get_dispatch_count() == 0) {
+        set_all_Free();
+    }
     pthread_t stat_thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -303,13 +325,13 @@ int main() {
         cJSON * resources = cJSON_GetObjectItem(job, "resources");
         if (!resources) {
             pthread_mutex_unlock(&lock);
-            printf("Error: Job %d missing resources field\n", job_id->valueint);
+            printf("Error: Job %s missing resources field\n", job_id->valuestring);
             continue;
         }
 
         cJSON * cpu_num = cJSON_GetObjectItem(resources, "cpu");
         if (!cpu_num) {
-            printf("Error: Job %d missing cpu feild\n", job_id->valueint);
+            printf("Error: Job %s missing cpu feild\n", job_id->valuestring);
             pthread_mutex_unlock(&lock);
             continue;
         }
@@ -326,7 +348,7 @@ int main() {
             free(c);
             pthread_cond_wait(&cpu_available, &lock);
             
-            c=malloc(sizeof(CPUout));
+            c=malloc(sizeof(CPUout));                            
             cpu_avail(cpuNum, c);
         }
 
@@ -341,15 +363,13 @@ int main() {
         chg_status(atoi(job_id->valuestring));
         // Set the cores that will be used to Occupied so other jobs wont take them while this job is running
         int j = 0;
-        while (c->hosts[j] != NULL) {
+        for (j = 0; j < c->num_hosts; j++) {
             update_status(c->cpu_cores[j], c->hosts[j]);
-            j++;
         }
 
         pthread_t thread;
         EXECUTE* input = malloc(sizeof(EXECUTE));
         input->job = cJSON_Duplicate(job, 1);
-        input->c = malloc(sizeof(CPUout));
         input->c = c;
         input->start = start;
 

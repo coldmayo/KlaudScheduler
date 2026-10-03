@@ -73,7 +73,7 @@ int show_info(int argc, char ** argv) {
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     cJSON * jobs = read_json(file_path);
 
     // Filter out undesireables

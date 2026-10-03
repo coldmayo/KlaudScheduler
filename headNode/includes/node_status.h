@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-NODEINFO * node_info(char * hostname);
+NODEINFO * node_info(const char * addr);
 void updateNodeHealth(void);
 
 #endif // node_status_h_INCLUDED

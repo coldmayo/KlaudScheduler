@@ -9,7 +9,7 @@
 #include "../includes/types.h"
 #include "../includes/utils.h"
 
-NODEINFO * node_info(char * addr) {
+NODEINFO * node_info(const char * addr) {
 	char cmd[200];
 	char file_cpu[50];
 	char file_ram[50];
@@ -19,7 +19,7 @@ NODEINFO * node_info(char * addr) {
 	sprintf(file_cpu, "cpu_%s.txt", hostname);
 	sprintf(file_ram, "ram_%s.txt", hostname);
 
-	sprintf(cmd, "ssh master@%s \"cat /proc/stat\" > %s && ssh master@%s \"cat /proc/meminfo\" > %s", hostname, file_cpu, hostname, file_ram);
+	sprintf(cmd, "ssh $USER@%s \"cat /proc/stat\" > %s && ssh $USER@%s \"cat /proc/meminfo\" > %s", hostname, file_cpu, hostname, file_ram);
 
 	system(cmd);
 
@@ -92,60 +92,51 @@ NODEINFO * node_info(char * addr) {
 }
 
 void updateNodeHealth() {
-    
-    ConfigInfo * config = get_config_info();
-    char file_path[200];
-    sprintf(file_path, "%s/nodes.json", config->dir);
-    FILE * fp = fopen(file_path, "r");
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    rewind(fp);
+	ConfigInfo * config = get_config_info();
+	char file_path[150];
 
-    if (file_size <= 0) {
-        fclose(fp);
-        return;
-    }
+	// Hold the lock only while reading the file, not during ssh
+	snprintf(file_path, sizeof(file_path), "%s/nodes.json", config->data_dir);
+	pthread_mutex_lock(&file_lock);
+	cJSON * root = read_json(file_path);
+	pthread_mutex_unlock(&file_lock);
 
-    char *buffer = (char *)malloc(file_size + 1);
-    fread(buffer, 1, file_size, fp);
-    buffer[file_size] = '\0';
-    fclose(fp);
+	cJSON * node_array = cJSON_IsObject(root) ? cJSON_GetObjectItem(root, "nodes") : NULL;
+	if (!cJSON_IsArray(node_array)) {
+		cJSON_Delete(root);
+		return;
+	}
 
-    time_t current_time;
-    struct tm *local_time;
-    current_time = time(&current_time);
-    local_time = localtime(&current_time);
-    
-    char file_path2[200];
-    sprintf(file_path2, "%s/node_status.txt", config->dir);
-    FILE * nodeHFile = fopen(file_path2, "a");
-    fprintf(nodeHFile, "\n===== Node(s) Health update: %s =====\n", asctime(local_time));
+	snprintf(file_path, sizeof(file_path), "%s/node_status.txt", config->dir);
+	FILE * out = fopen(file_path, "a");
+	if (!out) {
+		cJSON_Delete(root);
+		return;
+	}
 
-    cJSON * node_array = cJSON_Parse(buffer);
-    free(buffer);
+	time_t now = time(NULL);
+	struct tm tmv;
+	char stamp[64];
+	localtime_r(&now, &tmv);
+	strftime(stamp, sizeof(stamp), "%a %b %d %H:%M:%S %Y", &tmv);
+	fprintf(out, "\n===== Node(s) Health update: %s =====\n", stamp);
 
-    cJSON * node = NULL;
-    cJSON_ArrayForEach(node, node_array) {
+	cJSON * node = NULL;
+	cJSON_ArrayForEach(node, node_array) {
 		cJSON * host = cJSON_GetObjectItem(node, "hostname");
-		char * name = host->valuestring;
-		//printf("Collecting Data for %s\n", name);
-		NODEINFO * node_i = node_info(name);
-		//printf("Finished getting data\n");
-		
-	        char coreUse[150] = "";
-	
-	        for (int j = 0; j < node_i->num_cores; j++) {
-		    char ind_use[40];
-		    sprintf(ind_use, "Core slot %d usage: %.2f\n", j, node_i->coreUse[j]);
-		    strcat(coreUse, ind_use);
-	        }
-	        
-	        fprintf(nodeHFile,"\nNode: %s\nInfo:\nCPU Use: %.2f\nCore Usage:\n%s\nRAM Usage: %.2f\n", name, node_i->cpuUse, coreUse, node_i->ram_usage*100.0);
-	        
-	        free(node_i);
-    }
+		if (!cJSON_IsString(host) || !host->valuestring) continue;
 
-	fclose(nodeHFile);
-	cJSON_Delete(node_array);
-	//printf("Node Health Updated\n");
+		NODEINFO * ni = node_info(host->valuestring);
+		if (!ni) continue;
+
+		fprintf(out, "\nNode: %s\nInfo:\nCPU Use: %.2f\nCore Usage:\n", host->valuestring, ni->cpuUse);
+		for (int j = 0; j < ni->num_cores; j++) {
+			fprintf(out, "Core slot %d usage: %.2f\n", j, ni->coreUse[j]);
+		}
+		fprintf(out, "\nRAM Usage: %.2f\n", ni->ram_usage * 100.0);
+		free(ni);
+	}
+
+	fclose(out);
+	cJSON_Delete(root);
 }

@@ -46,6 +46,7 @@ typedef struct {
 	char ** ignore_hosts;
 	char * get_nodes_strat;
 	char * dir;
+	char * data_dir;
 } ConfigInfo;
 
 #endif // types_h_INCLUDED

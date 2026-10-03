@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
+#include <pwd.h>
 #include "cJSON.h"
 #include "../includes/utils.h"
 #include "../includes/types.h"
@@ -43,7 +45,7 @@ int gen_id(void) {
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     cJSON * jobs_array = read_json(file_path);
     if (cJSON_GetArraySize(jobs_array) == 0) {
         return 1000;
@@ -65,10 +67,11 @@ int chg_status(int id_) {
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     
 	char job_id[5];
 	sprintf(job_id, "%d", id_);
+    pthread_mutex_lock(&file_lock);
     cJSON * jobs_array = read_json(file_path);
 
 	cJSON * job = NULL;
@@ -94,8 +97,9 @@ int chg_status(int id_) {
     }
 
     cJSON_Delete(jobs_array);
+    pthread_mutex_unlock(&file_lock);
 
-	return 0;
+    return 0;
 }
 
 void update_time(double elapsed) {
@@ -103,7 +107,8 @@ void update_time(double elapsed) {
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    pthread_mutex_lock(&file_lock);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     cJSON * jobs_array = read_json(file_path);
     cJSON *job = NULL;
         cJSON_ArrayForEach(job, jobs_array) {
@@ -135,6 +140,7 @@ void update_time(double elapsed) {
     }
 
     cJSON_Delete(jobs_array);
+    pthread_mutex_unlock(&file_lock);
 }
 
 int clear_queue () {
@@ -143,7 +149,7 @@ int clear_queue () {
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
 
 	FILE * fp = fopen(file_path, "w");
 	if (fp == NULL) {
@@ -160,16 +166,19 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
     config = get_config_info();
 
     char file_path[200];
-    sprintf(file_path, "%s/jobs.json", config->dir);
+    sprintf(file_path, "%s/jobs.json", config->data_dir);
     
     cJSON *jobs_array = read_json(file_path);
     if (!jobs_array || !cJSON_IsArray(jobs_array)) {
         if (jobs_array) cJSON_Delete(jobs_array);
         jobs_array = cJSON_CreateArray();
     }
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
 
     cJSON *job = cJSON_CreateObject();
     cJSON_AddStringToObject(job, "job_id", cJSON_Print(cJSON_CreateNumber(id)));
+    cJSON_AddStringToObject(job, "user", pw->pw_name);
     cJSON_AddStringToObject(job, "command", comm);
     cJSON *resources = cJSON_CreateObject();
     cJSON_AddNumberToObject(resources, "cpu", cpu);
