@@ -40,7 +40,6 @@ char * hostlist(CPUout * c, int id) {
 
 // for now, just doing jobs in submission order (First Come first Serve)
 cJSON * find_job() {
-
     ConfigInfo * config;
     config = get_config_info();
 
@@ -74,7 +73,6 @@ cJSON * find_job() {
         if (strcmp(status->valuestring, "QUEUED") == 0 && strcmp(user->valuestring, pw->pw_name) == 0) {
             double prior = priority->valuedouble;
             printf("QUEUED job found with priority %f\n", prior);
-
             if (prior > biggest) {
                 printf("New highest priority: %f\n", prior);
                 biggest = prior;
@@ -116,6 +114,48 @@ void clean_up(cJSON * job, CPUout * c, double time) {
     }
     printf("Cleaned up job %s\n", id->valuestring);
     fflush(stdout);
+}
+
+static pid_t spawn_job(const char *hosts, const char *rankfile, const char *command, const char *outfile) {
+    char map[PATH_MAX + 32];
+    snprintf(map, sizeof(map), "rankfile:file=%s", rankfile);
+
+    char cmd_copy[512];
+    snprintf(cmd_copy, sizeof(cmd_copy), "./%s", command);
+
+    char *argv[64];
+    int n = 0;
+    argv[n++] = "mpirun";
+    argv[n++] = "--host";
+    argv[n++] = (char *)hosts;
+    argv[n++] = "--map-by";
+    argv[n++] = map;
+
+    char *save = NULL;
+    for (char *tok = strtok_r(cmd_copy, " \t", &save);
+         tok && n < 63;
+         tok = strtok_r(NULL, " \t", &save)) {
+        argv[n++] = tok;
+    }
+    argv[n] = NULL;
+
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, STDOUT_FILENO, outfile,
+                                     O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, STDOUT_FILENO, STDERR_FILENO);
+
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    posix_spawnattr_setpgroup(&attr, 0);                 // new group, pgid == child pid
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETPGROUP);
+
+    pid_t pid;
+    int rc = posix_spawnp(&pid, "mpirun", &fa, &attr, argv, environ);
+
+    posix_spawn_file_actions_destroy(&fa);
+    posix_spawnattr_destroy(&attr);
+    return rc == 0 ? pid : -1;
 }
 
 void * execute_job(void * args) {
@@ -161,13 +201,24 @@ void * execute_job(void * args) {
 	fflush(stdout);
     sprintf(rankfile_name, "%s/%s_rankfile.txt", config->dir, id->valuestring);
 
-	snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > \"%s\" 2>&1", hosts, rankfile_name, run->valuestring, outfile);
-        printf("CMD: %s\n", cmd);
+	//snprintf(cmd, sizeof(cmd), "mpirun --host %s --map-by rankfile:file=%s ./%s > \"%s\" 2>&1", hosts, rankfile_name, run->valuestring, outfile);
+    //printf("CMD: %s\n", cmd);
+    pid_t pid = spawn_job(hosts, rankfile_name, run->valuestring, outfile);
+    if (pid < 0) {
+        printf("Failed to spawn job\n");
+    } else {
+        set_job_pid(atoi(id->valuestring), pid);
+        int status;
+        pid_t r;
+        do { r = waitpid(pid, &status, 0); } while (r == -1 && errno == EINTR);
 
-        int rc = system(cmd);
-        if (rc == -1 || !WIFEXITED(rc) || WEXITSTATUS(rc) != 0) {
-          printf("Run failed, status=%d\n", rc);
-        }
+        set_job_pid(atoi(id->valuestring), 0);
+        if (WIFSIGNALED(status))
+            printf("Job killed by signal %d\n", WTERMSIG(status));
+        else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+            printf("Run failed, status=%d\n", WEXITSTATUS(status));
+    }
+
     printf("Finished!\n");
     time(&end);
     pthread_mutex_lock(&lock);

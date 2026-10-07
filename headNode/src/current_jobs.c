@@ -6,11 +6,119 @@
 #include <string.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <sys/file.h>
 #include "cJSON.h"
 #include "../includes/utils.h"
 #include "../includes/types.h"
+#include "../includes/current_jobs.h"
 
 // Possible job status: RUNNING, QUEUED, DONE
+
+// once job starts running add the PID of the process
+#include <signal.h>
+#include <limits.h>
+
+int set_job_pid(int id_, int pid_) {
+    ConfigInfo *config = get_config_info();
+    char file_path[PATH_MAX], job_id[16];
+    snprintf(file_path, sizeof(file_path), "%s/jobs.json", config->data_dir);
+    snprintf(job_id, sizeof(job_id), "%d", id_);
+
+    int lk = lock_jobs();
+    if (lk < 0) return -1;
+
+    int rc = -1;
+    cJSON *jobs = read_json(file_path);
+    cJSON *job = NULL;
+
+    cJSON_ArrayForEach(job, jobs) {
+        cJSON *id = cJSON_GetObjectItem(job, "job_id");
+        if (!cJSON_IsString(id) || strcmp(id->valuestring, job_id) != 0) continue;
+
+        cJSON *pid = cJSON_GetObjectItem(job, "PID");
+        if (pid) cJSON_SetNumberValue(pid, pid_);
+        else     cJSON_AddNumberToObject(job, "PID", pid_);
+
+        rc = save_json(file_path, jobs);
+        break;
+    }
+
+    cJSON_Delete(jobs);
+    unlock_jobs(lk);
+    return rc;
+}
+
+int kill_job(int pid, bool force) {
+    if (pid <= 0) return -1;
+    return kill(-pid, force ? SIGKILL : SIGTERM);
+}
+
+int cancel_job(int id_, bool force) {
+    ConfigInfo *config = get_config_info();
+    char file_path[PATH_MAX], job_id[16];
+    snprintf(file_path, sizeof(file_path), "%s/jobs.json", config->data_dir);
+    snprintf(job_id, sizeof(job_id), "%d", id_);
+
+    int lk = lock_jobs();
+    if (lk < 0) return -1;
+
+    int rc = -1;
+    cJSON *jobs = read_json(file_path);
+
+    cJSON *target = NULL, *job = NULL;
+    cJSON_ArrayForEach(job, jobs) {
+        cJSON *id = cJSON_GetObjectItem(job, "job_id");
+        if (cJSON_IsString(id) && strcmp(id->valuestring, job_id) == 0) {
+            target = job;
+            break;
+        }
+    }
+
+    if (!target) {
+        fprintf(stderr, "Job %d not found\n", id_);
+        goto out;
+    }
+
+    cJSON *status = cJSON_GetObjectItem(target, "status");
+    cJSON *owner = cJSON_GetObjectItem(target, "user");
+    struct passwd *pw = getpwuid(getuid());
+  	if (!cJSON_IsString(owner) || !pw || strcmp(owner->valuestring, pw->pw_name) != 0) {
+      	fprintf(stderr, "Job %d belongs to another user\n", id_);
+      	goto out;
+  	}
+    const char *st = cJSON_IsString(status) ? status->valuestring : "";
+
+    if (strcmp(st, "QUEUED") == 0) {
+        cJSON_ReplaceItemInObject(target, "status", cJSON_CreateString("CANCELLED"));
+        rc = save_json(file_path, jobs);
+
+    } else if (strcmp(st, "RUNNING") == 0) {
+        cJSON *pid = cJSON_GetObjectItem(target, "PID");
+        int p = cJSON_IsNumber(pid) ? pid->valueint : 0;
+        if (p <= 0) {
+            fprintf(stderr, "Job %d has no PID yet, try again in a moment\n", id_);
+            goto out;
+        }
+        // Mark CANCELLED before signalling so the cleanup path doesn't record DONE
+        cJSON_ReplaceItemInObject(target, "status", cJSON_CreateString("CANCELLED"));
+        if (save_json(file_path, jobs) == 0) {
+            if (kill_job(p, force) == 0) rc = 0;
+            else perror("kill");
+        }
+
+    } else if (strcmp(st, "CANCELLED") == 0) {
+        fprintf(stderr, "Job %d already cancelled\n", id_);
+    } else if (strcmp(st, "DONE") == 0) {
+        fprintf(stderr, "Job %d already finished\n", id_);
+    } else {
+        fprintf(stderr, "Job %d has unexpected status '%s'\n", id_, st);
+    }
+
+    out:
+    cJSON_Delete(jobs);
+    unlock_jobs(lk);
+    return rc;
+}
 
 // Higher the priority # the quicker it gets run
 double get_priority(int time, int cpus, int id) {
@@ -34,7 +142,7 @@ double get_priority(int time, int cpus, int id) {
     	printf("Does not understand selected proirity system, assuming FIFO\n");
         prior = (time*weights[0]) + (pos*weights[2]) + (ticket*weights[3]);
 	}
-	
+
 	free(config);
 	return prior;
 }
@@ -180,6 +288,7 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
     cJSON_AddStringToObject(job, "job_id", cJSON_Print(cJSON_CreateNumber(id)));
     cJSON_AddStringToObject(job, "user", pw->pw_name);
     cJSON_AddStringToObject(job, "command", comm);
+    cJSON_AddNumberToObject(job, "PID", -1);
     cJSON *resources = cJSON_CreateObject();
     cJSON_AddNumberToObject(resources, "cpu", cpu);
     cJSON_AddStringToObject(resources, "memory", mem);

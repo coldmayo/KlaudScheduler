@@ -12,8 +12,10 @@ MAIN_SRCS := $(SRC)/main.c $(SRC)/current_jobs.c $(SRC)/cJSON.c $(SRC)/utils.c $
 MAIN_HDRS := $(INCLUDE)/current_jobs.h $(INCLUDE)/types.h $(INCLUDE)/utils.h $(INCLUDE)/klaud_files.h
 KTRACK_SRCS := $(SRC)/ktrack.c $(SRC)/utils.c $(SRC)/cJSON.c
 KTRACK_HDRS := $(SRC)/cJSON.h $(INCLUDE)/utils.h
+KCANCEL_SRCS := $(SRC)/kcancel.c $(SRC)/utils.c $(SRC)/current_jobs.c $(SRC)/cJSON.c
+KCANCEL_HDRS := $(INCLUDE)/utils.h $(INCLUDE)/current_jobs.h $(INCLUDE)/types.h
 
-all: get-nodes dispatch klaudrun ktrack
+all: get-nodes dispatch klaudrun ktrack kcancel
 
 get-nodes: $(GEN_NODES_SRCS) $(GEN_NODES_HDRS)
 	$(CC) $(CFLAGS) -o get-nodes $(GEN_NODES_SRCS)
@@ -30,13 +32,12 @@ klaudrun: $(MAIN_SRCS) $(MAIN_HDRS)
 ktrack: $(KTRACK_SRCS) $(KTRACK_HDRS)
 	$(CC) $(CFLAGS) -o ktrack $(KTRACK_SRCS)
 	@cp ktrack ~/.local/bin/ktrack
+kcancel: $(KCANCEL_SRCS) $(KCANCEL_HDRS)
+	$(CC) $(CFLAGS) -o kcancel $(KCANCEL_SRCS)
+	@cp kcancel ~/.local/bin/kcancel
 global:
-	@cp get-nodes ~/.local/bin/get-nodes
-	@cp dispatch ~/.local/bin/dispatch
-	@cp klaudrun ~/.local/bin/klaudrun
-	@cp ktrack ~/.local/bin/ktrack
-	@sudo cp get-nodes dispatch klaudrun ktrack /usr/local/bin/
-	
+	@cp get-nodes dispatch klaudrun ktrack kcancel ~/.local/bin/
+	@sudo cp get-nodes dispatch klaudrun ktrack kcancel /usr/local/bin/
 run_dispatch:
 	./dispatch
 
@@ -48,4 +49,4 @@ debug:
 	gdb ./dispatch
 
 clean:
-	rm -f get-nodes dispatch klaudrun
+	rm -f get-nodes dispatch klaudrun ktrack kcancel

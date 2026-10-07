@@ -11,6 +11,37 @@
 
 pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
 
+int lock_jobs(void) {
+    ConfigInfo *config = get_config_info();
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/jobs.lock", config->data_dir);
+    int fd = open(path, O_CREAT | O_RDWR, 0660);
+    if (fd < 0) return -1;
+    fchmod(fd, 0660);
+    if (flock(fd, LOCK_EX) < 0) { close(fd); return -1; }
+    return fd;
+}
+
+void unlock_jobs(int fd) {
+    if (fd >= 0) {
+        close(fd);
+    }
+}
+
+int save_json(const char *path, cJSON *root) {
+    if (!root) return -1;
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    char *text = cJSON_Print(root);
+    if (!text) return -1;
+    FILE *f = fopen(tmp, "w");
+    if (!f) { free(text); return -1; }
+    fputs(text, f);
+    fclose(f);
+    free(text);
+    return rename(tmp, path);
+}
+
 char * read_file(char * file_name) {
 	FILE * f;
 	f = fopen(file_name, "rb");
