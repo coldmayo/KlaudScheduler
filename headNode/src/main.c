@@ -52,6 +52,12 @@ int get_info(int argc, char *argv[], E_Job *job) {
             if (value) {
                 strncpy(job->command, value + 1, 255);
                 job->command[255] = '\0';
+                // Remove surrounding quotes if present
+                int len = strlen(job->command);
+                if (len >= 2 && job->command[0] == '"' && job->command[len-1] == '"') {
+                  memmove(job->command, job->command + 1, len - 2);
+                  job->command[len - 2] = '\0';
+                }
             } else {
 				return -1;
             }
@@ -60,6 +66,12 @@ int get_info(int argc, char *argv[], E_Job *job) {
             if (value) {
                 strncpy(job->outfile, value+1, 255);
                 job->outfile[255] = '\0';
+                // Remove surrounding quotes if present
+                int len = strlen(job->outfile);
+                if (len >= 2 && job->outfile[0] == '"' && job->outfile[len-1] == '"') {
+                  memmove(job->outfile, job->outfile + 1, len - 2);
+                  job->outfile[len - 2] = '\0';
+                }
             } else {
 				return -1;
             }

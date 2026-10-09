@@ -5,28 +5,15 @@
 #include <dirent.h>
 #include <limits.h>
 #include <pthread.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/file.h>
 #include "../includes/types.h"
 
 // Literally a file of random smaller functions that I think can be helpful in multiple other files
 
 pthread_mutex_t file_lock = PTHREAD_MUTEX_INITIALIZER;
-
-int lock_jobs(void) {
-    ConfigInfo *config = get_config_info();
-    char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/jobs.lock", config->data_dir);
-    int fd = open(path, O_CREAT | O_RDWR, 0660);
-    if (fd < 0) return -1;
-    fchmod(fd, 0660);
-    if (flock(fd, LOCK_EX) < 0) { close(fd); return -1; }
-    return fd;
-}
-
-void unlock_jobs(int fd) {
-    if (fd >= 0) {
-        close(fd);
-    }
-}
 
 int save_json(const char *path, cJSON *root) {
     if (!root) return -1;
@@ -154,6 +141,23 @@ ConfigInfo * get_config_info() {
 	}
 	fclose(config);
 	return info;
+}
+
+int lock_jobs(void) {
+    ConfigInfo *config = get_config_info();
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/jobs.lock", config->data_dir);
+    int fd = open(path, O_CREAT | O_RDWR, 0660);
+    if (fd < 0) return -1;
+    fchmod(fd, 0660);
+    if (flock(fd, LOCK_EX) < 0) { close(fd); return -1; }
+    return fd;
+}
+
+void unlock_jobs(int fd) {
+    if (fd >= 0) {
+        close(fd);
+    }
 }
 
 bool allowed_ip(const char *ip)
@@ -305,7 +309,7 @@ int cpu_ranks(char * hostname, int id) {
     ConfigInfo * config;
     config = get_config_info();
 
-    char file_name[40];
+    char file_name[100];
     sprintf(file_name, "%s/%d_rankfile.txt", config->dir, id);
     FILE *file = fopen(file_name, "r");
     if (!file) return 0;

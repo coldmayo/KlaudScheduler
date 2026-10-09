@@ -8,6 +8,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <spawn.h>
+#include <errno.h>
+#include <float.h>
 #include "../includes/utils.h"
 #include "../includes/current_jobs.h"
 #include "../includes/types.h"
@@ -16,6 +20,7 @@
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cpu_available = PTHREAD_COND_INITIALIZER;
+extern char **environ;
 
 char * hostlist(CPUout * c, int id) {
     char * hosts = malloc(70 * sizeof(char));
@@ -49,7 +54,7 @@ cJSON * find_job() {
     //printf("%s\n", file_path);
     cJSON * jobs_array = read_json(file_path);
 
-    int biggest = 0;
+    double biggest = -DBL_MAX;
     cJSON * biggest_job = NULL;
     cJSON * job = NULL;
 
@@ -117,11 +122,11 @@ void clean_up(cJSON * job, CPUout * c, double time) {
 }
 
 static pid_t spawn_job(const char *hosts, const char *rankfile, const char *command, const char *outfile) {
-    char map[PATH_MAX + 32];
+    char map[400];
     snprintf(map, sizeof(map), "rankfile:file=%s", rankfile);
 
     char cmd_copy[512];
-    snprintf(cmd_copy, sizeof(cmd_copy), "./%s", command);
+    snprintf(cmd_copy, sizeof(cmd_copy), "%s", command);
 
     char *argv[64];
     int n = 0;
@@ -166,7 +171,7 @@ void * execute_job(void * args) {
     char * hosts;
     printf("Starting Execution\n");
     fflush(stdout);
-    char cmd[700];
+    //char cmd[700];
     char rankfile_name[200];
     
     ConfigInfo * config;

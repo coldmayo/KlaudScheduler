@@ -55,8 +55,12 @@ E_Job * read_klaud_file(char * file_name) {
 	        if (line[0] == '\0') continue;
 	        
 		if (strncmp(line, "#KLAUD", 6) == 0) {
-                    sscanf(line, "#KLAUD --outfile=\"%255[^\"]\"", job_info->outfile);
-                    sscanf(line, "#KLAUD --num_cores=%d", &job_info->cores);
+                    if (strstr(line, "--outfile")) {
+                        sscanf(line, "#KLAUD --outfile=\"%255[^\"]\"", job_info->outfile);
+                    }
+                    if (strstr(line, "--num_cores")) {
+                        sscanf(line, "#KLAUD --num_cores=%d", &job_info->cores);
+                    }
                     continue;
                 }
                 

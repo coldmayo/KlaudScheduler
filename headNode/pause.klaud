@@ -1,0 +1,5 @@
+#!/bin/bash
+#KLAUD --outfile="pingus.out"
+#KLAUD --num_cores=3
+
+sleep 60

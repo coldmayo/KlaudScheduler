@@ -10,7 +10,7 @@
 // Then spawn random points then use the formula: pi = \frac{4 * in}{total points} to find pi
 // This formula becomes: pi = \frac{4 * global}{points_inside_per_proc * # of processes}
 
-int main(int argc. char ** argv) {
+int main(int argc, char ** argv) {
 	int rank, size;
 	int in = 0; int out = 0;
 	int num_points = 100000000;
@@ -29,7 +29,7 @@ int main(int argc. char ** argv) {
 
 	unsigned int seed = (unsigned int)(time(NULL) + rank);
 
-	for (i = 0; i < num_points; i++) {
+	for (int i = 0; i < num_points; i++) {
 		x = (double)rand_r(&seed) / RAND_MAX;
 		y = (double)rand_r(&seed) / RAND_MAX;
 		if (x*x + y*y <= 1.0) {
@@ -40,7 +40,7 @@ int main(int argc. char ** argv) {
 	MPI_Reduce(&local_count, &global_count, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
 	if (rank == 0) {
-		float pi = 4.0*(double)global_count / total_points;
+		float pi = 4.0*(double)global_count / num_points;
 		printf("Estimated Pi = %f\nWith %d processes:", pi, size);
 	}
 
