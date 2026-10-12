@@ -48,6 +48,7 @@ int set_job_pid(int id_, int pid_) {
     return rc;
 }
 
+
 int kill_job(int pid, bool force) {
     if (pid <= 0) return -1;
     return kill(-pid, force ? SIGKILL : SIGTERM);
@@ -186,9 +187,9 @@ int chg_status(int id_) {
 	cJSON_ArrayForEach(job, jobs_array) {
 		cJSON * id = cJSON_GetObjectItem(job, "job_id");
 		cJSON * status = cJSON_GetObjectItem(job, "status");
-                
 		if (strcmp(id->valuestring, job_id) == 0 && strcmp(status->valuestring, "QUEUED") == 0) {
 			cJSON_ReplaceItemInObject(job, "status", cJSON_CreateString("RUNNING"));
+			cJSON_AddNumberToObject(job, "start_time", (double)time(NULL));
 			break;
 		} else if (strcmp(id->valuestring, job_id) == 0 && strcmp(status->valuestring, "RUNNING") == 0) {
 			cJSON_ReplaceItemInObject(job, "status", cJSON_CreateString("DONE"));
@@ -219,24 +220,28 @@ void update_time(double elapsed) {
     sprintf(file_path, "%s/jobs.json", config->data_dir);
     cJSON * jobs_array = read_json(file_path);
     cJSON *job = NULL;
+    int to_cancel[64], n = 0;
         cJSON_ArrayForEach(job, jobs_array) {
             cJSON *status = cJSON_GetObjectItem(job, "status");
             cJSON *time = cJSON_GetObjectItem(job, "time");
+            cJSON *start_time = cJSON_GetObjectItem(job, "start_time");
             cJSON * id = cJSON_GetObjectItem(job, "job_id");
-            cJSON *cpu = cJSON_GetObjectItemCaseSensitive(job, "resources") ?
-                         cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItem(job, "resources"), "cpu") :
-                         NULL;
+            cJSON *cpu = cJSON_GetObjectItemCaseSensitive(job, "resources") ? cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItem(job, "resources"), "cpu") : NULL;
+            cJSON * max_time = cJSON_GetObjectItem(job, "max_time");
+                double limit = cJSON_IsNumber(max_time) ? max_time->valuedouble : 0;
 
             if (!status || !status->valuestring || !time || !cpu) {
                 continue;
             }
-
+			double new_time = time->valuedouble + elapsed;
             if (strcmp(status->valuestring, "QUEUED") == 0) {
-                double new_time = time->valuedouble + elapsed;
                 cJSON_ReplaceItemInObject(job, "time", cJSON_CreateNumber(new_time));
-
                 double new_prior = get_priority(new_time, cpu->valueint, id->valueint);
                 cJSON_ReplaceItemInObject(job, "priority", cJSON_CreateNumber(new_prior));
+            } else if (strcmp(status->valuestring, "RUNNING") == 0) {
+                if (cJSON_IsNumber(start_time) && difftime(now, (time_t)start_time->valuedouble) >= limit && n < 64) {
+                    to_cancel[n++] = atoi(id->valuestring);
+                }
             }
         }
     FILE * fp = fopen(file_path, "w");
@@ -249,6 +254,7 @@ void update_time(double elapsed) {
 
     cJSON_Delete(jobs_array);
     pthread_mutex_unlock(&file_lock);
+    for (int k = 0; k < n; k++) cancel_job(to_cancel[k], true);
 }
 
 int clear_queue () {
@@ -267,7 +273,7 @@ int clear_queue () {
 	return 0;
 }
 
-void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, double priority, const char *out, const char *stat) {
+void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, double priority, const char *out, const char *stat, time_t max_time) {
     fflush(stdout);
     
     ConfigInfo * config;
@@ -297,6 +303,8 @@ void save_job(int id, const char *comm, int cpu, const char *mem, int gpu, doubl
 
     cJSON_AddNumberToObject(job, "priority", priority);
     cJSON_AddNumberToObject(job, "time", 0);
+    cJSON_AddNumberToObject(job, "start_time", 0);
+    cJSON_AddNumberToObject(job, "max_time", (double)max_time);   // convert max_time to seconds
     cJSON_AddStringToObject(job, "output", out);
     cJSON_AddStringToObject(job, "status", stat);
 

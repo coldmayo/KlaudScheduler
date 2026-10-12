@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <pwd.h>
 #include "cJSON.h"
-//#include <cjson/cJSON.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -12,6 +11,7 @@
 #include <spawn.h>
 #include <errno.h>
 #include <float.h>
+
 #include "../includes/utils.h"
 #include "../includes/current_jobs.h"
 #include "../includes/types.h"
@@ -62,13 +62,16 @@ cJSON * find_job() {
         cJSON * status = cJSON_GetObjectItem(job, "status");
         cJSON * priority = cJSON_GetObjectItem(job, "priority");
         cJSON * user = cJSON_GetObjectItem(job, "user");
+        cJSON * max_time = cJSON_GetObjectItem(job, "max_time");
+        cJSON * id = cJSON_GetObjectItem(job, "id");
         
         uid_t uid = getuid();
         struct passwd *pw = getpwuid(uid);
 
         // Safe pointer checking
-        if (!status || !priority || !status || !user) {
-            printf("Skipping job - missing fields\n");
+        if (!status || !priority || !max_time || !user) {
+            printf("Cancelling job - missing fields\n");
+            cancel_job(id->valueint, true);
             continue;
         }
 
@@ -339,10 +342,8 @@ void * check_time(void * args) {
 	    time(&check);
     	    double time_diff = difftime(check, start);
     	    if (time_diff >= 10.0) {
-        	//printf("It has been 5 sec\n");
         		updateNodeHealth();
-        		start = 0;
-        		check = 0;
+        		update_time(time_diff);
         		time(&start);
     		}
 	}
@@ -361,7 +362,7 @@ int main() {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     
-    // Every 10 seconds track cpu health
+    // Every 10 seconds track cpu health and update job uptime
     other_res = pthread_create(&stat_thread, NULL, check_time, NULL);
     if (other_res != 0) {
         printf("Could not create thread :(");
@@ -404,7 +405,7 @@ int main() {
             free(c);
             pthread_cond_wait(&cpu_available, &lock);
             
-            c=malloc(sizeof(CPUout));                            
+            c=malloc(sizeof(CPUout));
             cpu_avail(cpuNum, c);
         }
 

@@ -6,7 +6,7 @@
 #include "../includes/types.h"
 #include "../includes/klaud_files.h"
 
-const char *list[5] = {"--num_cores", "--command", "--outfile", "--file", "--help"};
+const char *list[7] = {"--num_cores", "--command", "--outfile", "--file", "--help", "--max_time"};
 
 int check_args(const char *arg) {
     char temp[100];
@@ -18,7 +18,7 @@ int check_args(const char *arg) {
         return -1;
     }
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (strcmp(token, list[i]) == 0) {
             return i;
         }
@@ -98,6 +98,25 @@ int get_info(int argc, char *argv[], E_Job *job) {
 			}
         } else if (index == 4) {
 			return 1;
+        } else if (index == 5) {
+            value = strchr(argv[i], '=');
+            if (!value) return -1;
+    		char *s = value + 1;
+            size_t slen = strlen(s);
+    		if (slen >= 2 && s[0] == '"' && s[slen-1] == '"') {
+        		s[slen-1] = '\0';
+        		s++;
+    		}
+    		int hh = 0, mm = 0, ss = 0;
+    		if (sscanf(s, "%d:%d:%d", &hh, &mm, &ss) != 3) {
+        		return -1;
+    		}
+    		if (hh < 0 || mm < 0 || mm >= 60 || ss < 0 || ss >= 60) {
+        		return -1;
+    		}
+
+    		job->max_time = (time_t)hh*3600 + (time_t)mm*60 + (time_t)ss;
+    		return 0;
         } else {
             printf("Unknown argument: %s\n", argv[i]);
             return -1;
@@ -132,6 +151,8 @@ wrong:
 		"\t\tExample: --command=\"./blingus\"\n"
 		"\t--outfile=file\n\t\tSet the name of the file that records job output\n"
 		"\t\tExample: --outfile=\"pingus.out\"\n"
+		"\t--max_time=H:M:S time format\n\t\tSet the max amount time a job runs\n"
+		"\t\tExample: --max_time=\"0:30:0\"\n"
 		"\t--file=file\n\t\tProvide a klaud batch file with all job info\n"
 		"\t\tExample: --file=\"pingus.klaud\"\n");
 		return 0;
@@ -148,7 +169,7 @@ wrong:
     printf("Command: %s\n", job.command);
     int id = gen_id();
     printf("Job ID: %d\n", id);
-    save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED");
+    save_job(id, job.command, job.cores, "idk", 0, get_priority(0, job.cores, id), job.outfile, "QUEUED", job.max_time);
 
     free(job.command);
     return 0;

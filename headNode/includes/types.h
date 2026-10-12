@@ -39,6 +39,7 @@ typedef struct {
     int num_commands;
     char *command;
     char * outfile;
+    time_t max_time;
 } E_Job;
 
 typedef struct {
