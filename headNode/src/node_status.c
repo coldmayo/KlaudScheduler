@@ -9,6 +9,67 @@
 #include "../includes/types.h"
 #include "../includes/utils.h"
 
+
+CLUSTERINFO * cluster_info(void) {
+	ConfigInfo *config = get_config_info();
+	if (config == NULL) {
+		return NULL;
+	}
+
+	char file_path[150];
+	snprintf(file_path, sizeof(file_path), "%s/nodes.json",
+			 config->data_dir);
+
+	pthread_mutex_lock(&file_lock);
+	cJSON *root = read_json(file_path);
+	pthread_mutex_unlock(&file_lock);
+
+	if (root == NULL) {
+		return NULL;
+	}
+
+	cJSON *node_array = cJSON_GetObjectItemCaseSensitive(root, "nodes");
+	if (!cJSON_IsArray(node_array)) {
+		cJSON_Delete(root);
+		return NULL;
+	}
+
+	CLUSTERINFO *info = calloc(1, sizeof(*info));
+	if (info == NULL) {
+		cJSON_Delete(root);
+		return NULL;
+	}
+
+	cJSON *node = NULL;
+
+	cJSON_ArrayForEach(node, node_array) {
+		if (info->num_nodes >= MAX_CORES) {
+			break;
+		}
+
+		cJSON *cpu_object =
+		cJSON_GetObjectItemCaseSensitive(node, "cpus");
+
+		if (!cJSON_IsObject(cpu_object)) {
+			continue;
+		}
+
+		int core_count = 0;
+		cJSON *cpu = NULL;
+
+		cJSON_ArrayForEach(cpu, cpu_object) {
+			core_count++;
+		}
+
+		info->core_nums[info->num_nodes] = core_count;
+		info->num_nodes++;
+	}
+
+	cJSON_Delete(root);
+	return info;
+}
+
+
 NODEINFO * node_info(const char * addr) {
 	char cmd[200];
 	char file_cpu[50];
@@ -139,4 +200,82 @@ void updateNodeHealth() {
 
 	fclose(out);
 	cJSON_Delete(root);
+}
+
+
+HEALTH *updateNodeHealth_TUI(void) {
+	ConfigInfo *config = get_config_info();
+	if (config == NULL) {
+		return NULL;
+	}
+
+	char file_path[150];
+
+	snprintf(file_path, sizeof(file_path), "%s/nodes.json", config->data_dir);
+
+	pthread_mutex_lock(&file_lock);
+	cJSON *root = read_json(file_path);
+	pthread_mutex_unlock(&file_lock);
+
+	if (root == NULL) {
+		return NULL;
+	}
+
+	cJSON *node_array =
+	cJSON_IsObject(root)
+	? cJSON_GetObjectItemCaseSensitive(root, "nodes")
+	: NULL;
+
+	if (!cJSON_IsArray(node_array)) {
+		cJSON_Delete(root);
+		return NULL;
+	}
+
+	HEALTH *health = calloc(1, sizeof(*health));
+	if (health == NULL) {
+		cJSON_Delete(root);
+		return NULL;
+	}
+
+	cJSON *node = NULL;
+	int nodes = 0;
+
+	cJSON_ArrayForEach(node, node_array) {
+		if (nodes >= MAX_NODES) {
+			break;
+		}
+
+		cJSON *host =
+		cJSON_GetObjectItemCaseSensitive(node, "hostname");
+
+		if (!cJSON_IsString(host) || host->valuestring == NULL) {
+			continue;
+		}
+
+		NODEINFO *ni = node_info(host->valuestring);
+		if (ni == NULL) {
+			continue;
+		}
+
+		health->tot_core[nodes] = ni->cpuUse;
+
+		int core_count = ni->num_cores;
+		if (core_count > MAX_CORES) {
+			core_count = MAX_CORES;
+		}
+
+		for (int j = 0; j < core_count; j++) {
+			health->cores[nodes][j] = ni->coreUse[j];
+		}
+
+		health->RAM[nodes] = ni->ram_usage;
+
+		free(ni);
+		nodes++;
+	}
+
+	health->num_nodes = nodes;
+
+	cJSON_Delete(root);
+	return health;
 }

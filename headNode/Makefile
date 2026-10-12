@@ -14,8 +14,14 @@ KTRACK_SRCS := $(SRC)/ktrack.c $(SRC)/utils.c $(SRC)/cJSON.c
 KTRACK_HDRS := $(SRC)/cJSON.h $(INCLUDE)/utils.h
 KCANCEL_SRCS := $(SRC)/kcancel.c $(SRC)/utils.c $(SRC)/current_jobs.c $(SRC)/cJSON.c
 KCANCEL_HDRS := $(INCLUDE)/utils.h $(INCLUDE)/current_jobs.h $(INCLUDE)/types.h
+KMANAGE_SRCS := $(SRC)/kmanage.c $(SRC)/utils.c $(SRC)/cJSON.c $(SRC)/node_status.c
+KMANAGE_HDRS := $(INCLUDE)/utils.h $(SRC)/cJSON.h $(INCLUDE)/node_status.h
 
-all: get-nodes dispatch klaudrun ktrack kcancel
+all: get-nodes dispatch klaudrun ktrack kcancel kmanage
+
+kmanage: $(KMANAGE_SRCS) $(KMANAGE_HDRS)
+	$(CC) $(CFLAGS) -o kmanage $(KMANAGE_SRCS) -lncurses
+	@cp kmanage ~/.local/bin/kmanage
 
 get-nodes: $(GEN_NODES_SRCS) $(GEN_NODES_HDRS)
 	$(CC) $(CFLAGS) -o get-nodes $(GEN_NODES_SRCS)

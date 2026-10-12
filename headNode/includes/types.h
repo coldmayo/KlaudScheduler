@@ -5,6 +5,20 @@
 #include <time.h>
 #include <stdbool.h>
 #define MAX_CORES 256
+#define MAX_NODES 100
+
+typedef struct {
+    int num_nodes;
+    int core_nums[MAX_CORES];
+} CLUSTERINFO;
+
+typedef struct {
+	int num_nodes;
+	int cores[MAX_NODES][MAX_CORES];
+	int cores_in_use[MAX_NODES][MAX_CORES];
+	int tot_core[MAX_NODES];
+	int RAM[MAX_NODES];
+} HEALTH;
 
 typedef struct {
 	int * cpu_cores;

@@ -160,8 +160,7 @@ void unlock_jobs(int fd) {
     }
 }
 
-bool allowed_ip(const char *ip)
-{
+bool allowed_ip(const char *ip) {
     ConfigInfo *config = get_config_info();
 
     if (!config) {
